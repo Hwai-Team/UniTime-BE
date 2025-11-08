@@ -1,1 +1,31 @@
-spring.application.name=UniTime
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${DATABASE_URL}  # Render 환경 변수에 DATABASE_URL 넣을 거야
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+jwt:
+  secret: ${JWT_SECRET:default_jwt_secret_key}  # Render에 환경 변수 넣으면 여기서 읽음
+  access-token-expiration: 3600000  # 1시간
+  refresh-token-expiration: 1209600000  # 2주
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.type.descriptor.sql.BasicBinder: trace
