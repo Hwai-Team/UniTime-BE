@@ -1,5 +1,5 @@
-# 1️⃣ JDK 17 기반 이미지 사용
-FROM openjdk:17-jdk-slim
+# 1️⃣ JDK 17 기반 이미지 (안정 버전)
+FROM eclipse-temurin:17-jdk-jammy
 
 # 2️⃣ 작업 디렉토리 지정
 WORKDIR /app
