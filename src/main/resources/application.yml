@@ -1,9 +1,8 @@
-server:
-  port: 8080
-
 spring:
   datasource:
-    url: ${DATABASE_URL}  # Render 환경 변수에 DATABASE_URL 넣을 거야
+    url: jdbc:postgresql://dpg-d47lgefdiees739f92ag-a.singapore-postgres.render.com:5432/unitime_db?sslmode=require
+    username: unitime_db_user
+    password: DZAwKlrR0H830jh2HmApPFq5AHrQpAj5
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -14,18 +13,18 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
 
-  servlet:
-    encoding:
-      charset: UTF-8
-      enabled: true
-      force: true
+server:
+  port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:default_jwt_secret_key}  # Render에 환경 변수 넣으면 여기서 읽음
-  access-token-expiration: 3600000  # 1시간
-  refresh-token-expiration: 1209600000  # 2주
+  secret: "4a9f1e2c7b8d0f3a6c9e1b2d4f7a8c0e4b6d9f1a2c3e5g7h"
+  access-token-validity-ms: 3600000
+  refresh-token-validity-ms: 1209600000
 
 logging:
   level:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql.BasicBinder: trace
+
+openai:
+  api-key: ""
