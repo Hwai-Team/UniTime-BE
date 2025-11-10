@@ -28,5 +28,5 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: trace
 
 openai:               # 배포시 이걸로
-  api-key: ${OPENAI_API_KEY:dummy}
+  api-key: ${OPENAI_API_KEY}
 
