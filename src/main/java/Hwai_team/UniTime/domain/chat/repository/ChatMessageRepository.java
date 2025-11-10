@@ -7,9 +7,7 @@ import java.util.List;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
-    // 나중에 문맥 이어서 쓰고 싶을 때 사용할 수 있는 메서드
-    List<ChatMessage> findTop20ByUserIdAndConversationIdOrderByCreatedAtAsc(
-            Long userId,
-            String conversationId
-    );
+    List<ChatMessage> findByUser_IdOrderByCreatedAtAsc(Long userId);
+
+    void deleteByUser_Id(Long userId);
 }

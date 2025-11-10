@@ -1,5 +1,6 @@
 package Hwai_team.UniTime.domain.chat.service;
 
+import Hwai_team.UniTime.domain.chat.dto.ChatHistoryResponse;
 import Hwai_team.UniTime.domain.chat.dto.ChatRequest;
 import Hwai_team.UniTime.domain.chat.dto.ChatResponse;
 import Hwai_team.UniTime.domain.chat.entity.ChatMessage;
@@ -11,18 +12,20 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class ChatService {
-
+    private final ChatMessageRepository chatMessageRepository;
     private final OpenAiClient openAiClient;
     private final UserRepository userRepository;
-    private final ChatMessageRepository chatMessageRepository;
+
 
     @Transactional
     public ChatResponse chat(ChatRequest request) {
+
 
         if (request.getUserId() == null) {
             throw new IllegalArgumentException("userId는 필수입니다.");
@@ -73,5 +76,20 @@ public class ChatService {
                 .reply(reply)
                 .conversationId(conversationId)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatHistoryResponse> getChatHistory(Long userId) {
+        List<ChatMessage> messages =
+                chatMessageRepository.findByUser_IdOrderByCreatedAtAsc(userId);
+
+        return messages.stream()
+                .map(ChatHistoryResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public void deleteChatHistory(Long userId) {
+        chatMessageRepository.deleteByUser_Id(userId);
     }
 }
