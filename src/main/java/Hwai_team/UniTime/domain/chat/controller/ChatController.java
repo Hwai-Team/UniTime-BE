@@ -8,8 +8,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +29,10 @@ public class ChatController {
             description = """
                     유저가 입력한 메시지를 GPT 기반 챗봇에게 전달하고,
                     챗봇의 답변을 반환합니다.
-                    conversationId가 없을 경우 새로운 대화 세션이 생성됩니다.
+                    
+                    서버는 userId 기준으로 대화 세션을 관리하므로
+                    요청 바디의 conversationId는 보내지 않아도 되며,
+                    보내더라도 서버에서 무시됩니다.
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "응답 성공",
@@ -40,7 +43,7 @@ public class ChatController {
             }
     )
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            description = "챗봇 요청 예시",
+            description = "챗봇 요청 예시 (conversationId는 생략 가능)",
             required = true,
             content = @Content(
                     mediaType = "application/json",
@@ -51,8 +54,7 @@ public class ChatController {
                             value = """
                                     {
                                       "userId": 1,
-                                      "message": "내 시간표 알려줘",
-                                      "conversationId": "550e8400-e29b-41d4-a716-446655440000"
+                                      "message": "내 시간표 알려줘"
                                     }
                                     """
                     )

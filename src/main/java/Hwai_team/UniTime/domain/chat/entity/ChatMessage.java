@@ -30,9 +30,7 @@ public class ChatMessage {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    // 같은 대화 세션 끼리 묶고 싶을 때 사용 (없으면 null 가능)
-    @Column(name = "conversation_id", length = 100)
-    private String conversationId;
+
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
