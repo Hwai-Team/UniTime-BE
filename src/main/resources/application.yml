@@ -28,4 +28,4 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: trace
 
 openai:
-  api-key: ${OPENAI_API_KEY}
+  api-key: ${OPENAI_API_KEY:dummy}
