@@ -3,6 +3,7 @@ package Hwai_team.UniTime.domain.timetable.controller;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
 import Hwai_team.UniTime.domain.timetable.entity.Timetable;
 import Hwai_team.UniTime.domain.timetable.service.AiTimetableService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiTimetableController {
 
     private final AiTimetableService aiTimetableService;
-
+    @Hidden
     @Operation(
             summary = "AI 시간표 생성",
             description = """

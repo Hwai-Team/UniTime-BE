@@ -4,6 +4,7 @@ package Hwai_team.UniTime.domain.timetable.controller;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableResponse;
 import Hwai_team.UniTime.domain.timetable.service.TimetableService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -13,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+
+@Hidden
 @RestController
 @RequestMapping("/api/timetables")
 @RequiredArgsConstructor
@@ -21,6 +24,7 @@ public class TimetableController {
 
     private final TimetableService timetableService;
 
+    @Hidden
     @Operation(
             summary = "AI로 시간표 생성 (랩핑 엔드포인트)",
             description = """

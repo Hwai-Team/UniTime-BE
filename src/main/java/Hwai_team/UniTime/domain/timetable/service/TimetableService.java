@@ -36,4 +36,12 @@ public class TimetableService {
 
         return response;
     }
+    public Object aiGenerateForUser(Long userId) {
+        // 여기를 네가 기존에 사용하던 AI 시간표 생성 로직으로 바꿔줘.
+        // 예: 유저의 수강 데이터, 희망 조건 등을 기반으로 timetableResponse 리턴
+        System.out.println("AI 시간표 생성 요청 - userId = " + userId);
+
+        // 임시로 예시 데이터 리턴 (테스트용)
+        return "예시 시간표: 월요일 자료구조, 화요일 운영체제, 수요일 DB시스템";
+    }
 }

@@ -99,4 +99,5 @@ public class ChatController {
         chatService.deleteChatHistory(userId);
         return ResponseEntity.noContent().build();
     }
+
 }

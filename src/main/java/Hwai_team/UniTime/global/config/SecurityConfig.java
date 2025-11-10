@@ -33,10 +33,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/signup",
-                                "/api/auth/refresh",   // 리프레시 엔드포인트
+                                "/api/auth/refresh",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
+                                "/swagger-ui.html",
                                 "/swagger-resources/**",
+                                "/webjars/**",
+                                "/configuration/**",
                                 "/error"
                         ).permitAll()
 
