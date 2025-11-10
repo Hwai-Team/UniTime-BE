@@ -1,13 +1,11 @@
 // src/main/java/Hwai_team/UniTime/domain/user/service/UserService.java
 package Hwai_team.UniTime.domain.user.service;
 
-import Hwai_team.UniTime.domain.user.dto.AuthResponse;
-import Hwai_team.UniTime.domain.user.dto.LoginRequest;
-import Hwai_team.UniTime.domain.user.dto.SignupRequest;
-import Hwai_team.UniTime.domain.user.dto.UserResponse;
+import Hwai_team.UniTime.domain.user.dto.*;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import Hwai_team.UniTime.global.jwt.JwtTokenProvider;
+import Hwai_team.UniTime.domain.user.dto.TokenResponse;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -59,23 +57,28 @@ public class UserService {
         return new AuthResponse(accessToken, refreshToken, new UserResponse(user));
     }
 
+
     // 리프레시 토큰으로 액세스 토큰 재발급
-    public AuthResponse refresh(String refreshToken) {
-        // 1) 리프레시 토큰 유효성 체크
+    public TokenResponse refresh(String refreshToken) {
+
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new IllegalArgumentException("리프레시 토큰이 비었습니다.");
+        }
+
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             throw new IllegalArgumentException("유효하지 않은 리프레시 토큰입니다.");
         }
 
-        // 2) 토큰에서 사용자 이메일 꺼내기
-        String email = jwtTokenProvider.getUserEmail(refreshToken); // JwtTokenProvider에 맞게 구현되어 있어야 함
-
+        String email = jwtTokenProvider.getUserEmail(refreshToken);
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("해당 유저가 존재하지 않습니다."));
 
-        // 3) 새 액세스 토큰 / 리프레시 토큰 생성
-        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getEmail());
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
+        String newAccessToken = jwtTokenProvider.generateAccessToken(email);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(email);
 
-        return new AuthResponse(newAccessToken, newRefreshToken, new UserResponse(user));
+        return TokenResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .build();
     }
 }

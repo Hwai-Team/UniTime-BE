@@ -1,17 +1,20 @@
 // src/main/java/Hwai_team/UniTime/domain/user/controller/AuthController.java
 package Hwai_team.UniTime.domain.user.controller;
 
-import Hwai_team.UniTime.domain.user.dto.AuthResponse;
-import Hwai_team.UniTime.domain.user.dto.LoginRequest;
-import Hwai_team.UniTime.domain.user.dto.SignupRequest;
+import Hwai_team.UniTime.domain.user.dto.*;
 import Hwai_team.UniTime.domain.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -81,26 +84,35 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "토큰 재발급",
+            summary = "로그아웃",
             description = """
-                    Authorization 헤더에 담긴 Refresh Token으로
-                    새로운 Access/Refresh 토큰을 재발급합니다.
-
-                    헤더 예시:
-                    Authorization: Bearer {refreshToken}
-                    """
+                클라이언트에서 가지고 있던 JWT(access/refresh)를 삭제하면 됩니다.
+                서버는 현재 별도 세션을 유지하지 않기 때문에,
+                이 API는 '로그아웃 요청이 왔다'는 것을 기록하거나
+                추후 블랙리스트 로직을 붙일 때 사용할 수 있습니다.
+                """
     )
-    @ApiResponse(responseCode = "200", description = "토큰 재발급 성공")
-    @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(
-            @RequestHeader(name = "Authorization", required = true, defaultValue = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.REFRESH_TOKEN_EXAMPLE")
-            String authorizationHeader
-    ) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Authorization 헤더 형식이 올바르지 않습니다. 'Bearer {token}' 형태여야 합니다.");
-        }
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal String email) {
+        System.out.println("로그아웃 요청한 사용자 이메일 = " + email);
+        // TODO: 나중에 refresh 토큰 블랙리스트 처리 같은 거 하고 싶으면 여기서 하면 됨
 
-        String refreshToken = authorizationHeader.substring(7);
-        return ResponseEntity.ok(userService.refresh(refreshToken));
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/refresh")
+    @Operation(
+            summary = "액세스 토큰 재발급",
+            description = """
+            로그인 시 받은 리프레시 토큰을 이용해 새로운 Access Token을 발급합니다.
+            body는 다음 형태로 전송해야 합니다:
+            {
+              "refreshToken": "<로그인 때 받은 refreshToken 값>"
+            }
+            """
+    )
+    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshTokenRequest request) {
+        TokenResponse response = userService.refresh(request.getRefreshToken());
+        return ResponseEntity.ok(response);
     }
 }
