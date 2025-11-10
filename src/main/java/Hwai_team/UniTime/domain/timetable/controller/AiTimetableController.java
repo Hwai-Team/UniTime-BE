@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiTimetableController {
 
     private final AiTimetableService aiTimetableService;
-    @Hidden
+
     @Operation(
             summary = "AI 시간표 생성",
             description = """

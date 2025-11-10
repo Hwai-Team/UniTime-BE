@@ -24,7 +24,6 @@ public class TimetableController {
 
     private final TimetableService timetableService;
 
-    @Hidden
     @Operation(
             summary = "AI로 시간표 생성 (랩핑 엔드포인트)",
             description = """
