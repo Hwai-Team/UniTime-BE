@@ -2,14 +2,19 @@
 package Hwai_team.UniTime.domain.user.service;
 
 import Hwai_team.UniTime.domain.user.dto.*;
+import Hwai_team.UniTime.domain.user.dto.UserProfileResponse;
+import Hwai_team.UniTime.domain.user.dto.UserProfileUpdateRequest;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import Hwai_team.UniTime.global.jwt.JwtTokenProvider;
 import Hwai_team.UniTime.domain.user.dto.TokenResponse;
 
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +37,7 @@ public class UserService {
                 .studentId(request.getStudentId())
                 .department(request.getDepartment())
                 .grade(request.getGrade())
+                .graduationYear(request.getGraduationYear())
                 .build();
 
         User saved = userRepository.save(user);
@@ -79,6 +85,53 @@ public class UserService {
         return TokenResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public UserProfileResponse getMyProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
+
+        return UserProfileResponse.from(user);
+    }
+
+    @Transactional
+    public UserProfileResponse updateMyProfile(Long userId, UserProfileUpdateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
+
+        // null 아닌 값만 업데이트 (부분 수정 가능하게)
+        if (request.getName() != null) {
+            user.setName(request.getName());
+        }
+        if (request.getStudentId() != null) {
+            user.setStudentId(request.getStudentId());
+        }
+        if (request.getDepartment() != null) {
+            user.setDepartment(request.getDepartment());
+        }
+        if (request.getGrade() != null) {
+            user.setGrade(request.getGrade());
+        }
+        if (request.getGraduationYear() != null) {
+            user.setGraduationYear(request.getGraduationYear());
+        }
+
+        return UserProfileResponse.from(user);
+    }
+    @Transactional(readOnly = true)
+    public UserProfileResponse getProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
+
+        return UserProfileResponse.builder()
+                .userId(user.getId())
+                .studentId(user.getStudentId())
+                .department(user.getDepartment())
+                .grade(user.getGrade())
+                .name(user.getName())
+                .graduationYear(user.getGraduationYear())
                 .build();
     }
 }

@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -111,7 +112,9 @@ public class AuthController {
             }
             """
     )
-    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<TokenResponse> refresh(
+            @org.springframework.web.bind.annotation.RequestBody RefreshTokenRequest request
+    ) {
         TokenResponse response = userService.refresh(request.getRefreshToken());
         return ResponseEntity.ok(response);
     }

@@ -1,13 +1,10 @@
-// src/main/java/Hwai_team/UniTime/domain/user/entity/User.java
 package Hwai_team.UniTime.domain.user.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
+import lombok.*;
 
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -15,7 +12,8 @@ import lombok.Builder;
 @Table(name = "users")
 public class User {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true, length = 100)
@@ -35,4 +33,13 @@ public class User {
 
     @Column(nullable = false, length = 50)
     private String name;        // 이름/닉네임
+
+    @Column(name = "graduation_year")
+    private Integer graduationYear;  // ✅ 한 번만 선언
+
+    // @Getter가 있으니 따로 getter/setter는 없어도 됨.
+    // 만약 수정용 setter 필요하면 아래만 남겨도 됨.
+    public void setGraduationYear(Integer graduationYear) {
+        this.graduationYear = graduationYear;
+    }
 }

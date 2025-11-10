@@ -13,4 +13,5 @@ public class SignupRequest {
     private String studentId;
     private String department;
     private Integer grade;
+    private Integer graduationYear;
 }
