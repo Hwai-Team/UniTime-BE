@@ -27,8 +27,6 @@ logging:
     org.hibernate.SQL: debug
     org.hibernate.type.descriptor.sql.BasicBinder: trace
 
-#openai:               # 배포시 이걸로
-#  api-key: ${OPENAI_API_KEY:dummy}
-#
-openai:
-  api-key: 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
+openai:               # 배포시 이걸로
+  api-key: ${OPENAI_API_KEY:dummy}
+
