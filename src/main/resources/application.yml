@@ -17,9 +17,10 @@ server:
   port: 8080
 
 jwt:
-  secret: "4a9f1e2c7b8d0f3a6c9e1b2d4f7a8c0e4b6d9f1a2c3e5g7h"
-  access-token-validity-ms: 3600000
-  refresh-token-validity-ms: 1209600000
+  secret: ${JWT_SECRET:4a9f1e2c7b4d9f2a9c1e7b4d9f2a9c1e} # 32자 이상 아무 문자열
+  access-token-validity-ms: 3600000      # 1시간
+  refresh-token-validity-ms: 1209600000  # 14일
+
 
 logging:
   level:
@@ -27,4 +28,4 @@ logging:
     org.hibernate.type.descriptor.sql.BasicBinder: trace
 
 openai:
-  api-key: ${OPENAI_API_KEY:dummy}
+  api-key: ${OPENAI_API_KEY}
