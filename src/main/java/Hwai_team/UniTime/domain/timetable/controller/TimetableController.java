@@ -71,9 +71,5 @@ public class TimetableController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("ai/ai-generate")
-    public ResponseEntity<AiTimetableResponse> delete(){
 
-        
-    }
 }
