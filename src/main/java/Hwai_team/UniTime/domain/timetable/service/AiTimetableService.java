@@ -16,13 +16,13 @@ import Hwai_team.UniTime.domain.course.repository.CourseRepository;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import Hwai_team.UniTime.global.ai.OpenAiClient;
+import Hwai_team.UniTime.global.ai.PromptTemplates;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import Hwai_team.UniTime.global.ai.OpenAiClient;
 
 @Service
 @RequiredArgsConstructor
@@ -46,13 +46,13 @@ public class AiTimetableService {
         // ✅ 2) 수강 가능 과목 조회 (나중에 학과/학년/학기 필터 추가 가능)
         List<Course> courses = courseRepository.findAll();
 
-        // ✅ 3) 프롬프트 만들기
-        String prompt = buildPrompt(user, courses, request.getMessage());
+        // ✅ 3) 프롬프트 만들기 (공통 템플릿 사용)
+        String prompt = PromptTemplates.buildTimetablePrompt(user, courses, request.getMessage());
 
         // ✅ 4) GPT에게서 JSON 문자열 받기
         String json = openAiClient.askTimetableJson(prompt);
 
-        // 🔍 디버그 로그 (일단 System.out으로)
+        // 🔍 디버그 로그
         System.out.println("=== GPT RAW JSON ===");
         System.out.println(json);
 
@@ -81,7 +81,7 @@ public class AiTimetableService {
                 .owner(user)
                 .year(request.getYear())
                 .semester(request.getSemester())
-                .title(timetableTitle)   // <- 무조건 null 아님
+                .title(timetableTitle)
                 .build();
         timetableRepository.save(timetable);
 
@@ -103,50 +103,6 @@ public class AiTimetableService {
         }
 
         return timetable;
-    }
-
-    private String buildPrompt(User user, List<Course> courses, String userMessage) {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("다음 사용자를 위한 대학 시간표를 만들어줘.\n");
-        sb.append("사용자 이름: ").append(user.getName()).append("\n");
-        sb.append("학과: ").append(user.getDepartment()).append("\n");
-        sb.append("학번: ").append(user.getStudentId()).append("\n");
-        sb.append("요청 내용: ").append(userMessage).append("\n\n");
-
-        sb.append("수강 가능 과목 리스트:\n");
-        for (Course c : courses) {
-            sb.append("- ")
-                    .append(c.getCourseCode()).append(" / ")
-                    .append(c.getName()).append(" / ")
-                    .append(c.getCredit()).append("학점 / ")
-                    .append(c.getDayOfWeek()).append(" ")
-                    .append(c.getStartPeriod()).append("~").append(c.getEndPeriod())
-                    .append(" / ")
-                    .append(c.getRoom() != null ? c.getRoom() : "")
-                    .append("\n");
-        }
-
-        sb.append("""
-            
-            반드시 아래 JSON 구조만 반환해. 다른 텍스트는 절대 쓰지 마.
-            {
-              "title": "string",
-              "items": [
-                {
-                  "courseCode": "string",
-                  "courseName": "string",
-                  "dayOfWeek": "MON|TUE|WED|THU|FRI",
-                  "startTime": "HH:MM",
-                  "endTime": "HH:MM",
-                  "location": "string",
-                  "priority": "MAJOR|ELECTIVE|OPTIONAL"
-                }
-              ]
-            }
-            """);
-
-        return sb.toString();
     }
 
     // 아주 단순한 변환: "09:00" -> 9
@@ -179,7 +135,6 @@ public class AiTimetableService {
         Timetable timetable = timetableRepository.findById(request.getTimetableId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시간표입니다. id=" + request.getTimetableId()));
 
-        // 유저당 하나만 관리: 있으면 update, 없으면 새로 생성
         // 유저당 하나만 관리: 있으면 update, 없으면 새로 생성
         AiTimetable aiTimetable = aiTimetableRepository.findByUser_Id(user.getId())
                 .orElseGet(() -> AiTimetable.builder()

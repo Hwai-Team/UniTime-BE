@@ -9,10 +9,11 @@ import Hwai_team.UniTime.domain.chat.repository.ChatMessageRepository;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import Hwai_team.UniTime.global.ai.OpenAiClient;
+import Hwai_team.UniTime.global.ai.PromptTemplates;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import Hwai_team.UniTime.global.ai.PromptTemplates;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,14 +44,10 @@ public class ChatService {
         String conversationId = "USER-" + user.getId();
 
         // 시스템 프롬프트
-        String systemPrompt = """
-                너는 UniTime 서비스 안에서 동작하는 대학생 전용 챗봇이야.
-                시간표, 수강 과목, 공부 계획, 그리고 UniTime 기능 사용법에 대해
-                친절하고 간결하게 한국어로 답변해줘.
-                """;
-
-        // GPT에게 답변 요청
-        String reply = openAiClient.askChat(systemPrompt, request.getMessage());
+        String reply = openAiClient.askChat(
+                PromptTemplates.CHAT_SYSTEM_PROMPT,
+                request.getMessage()
+        );
 
         // === 여기서 "시간표 만들 의도" 감지 + 플랜 추출 ===
         boolean timetableIntent = isTimetableIntent(request.getMessage());
