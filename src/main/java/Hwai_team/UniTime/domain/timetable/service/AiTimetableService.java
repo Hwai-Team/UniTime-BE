@@ -2,9 +2,13 @@
 package Hwai_team.UniTime.domain.timetable.service;
 
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
+import Hwai_team.UniTime.domain.timetable.dto.AiTimetableResponse;
+import Hwai_team.UniTime.domain.timetable.dto.AiTimetableSaveRequest;
 import Hwai_team.UniTime.domain.timetable.dto.TimetablePlan;
+import Hwai_team.UniTime.domain.timetable.entity.AiTimetable;
 import Hwai_team.UniTime.domain.timetable.entity.Timetable;
 import Hwai_team.UniTime.domain.timetable.entity.TimetableItem;
+import Hwai_team.UniTime.domain.timetable.repository.AiTimetableRepository;
 import Hwai_team.UniTime.domain.timetable.repository.TimetableRepository;
 import Hwai_team.UniTime.domain.timetable.repository.TimetableItemRepository;
 import Hwai_team.UniTime.domain.course.entity.Course;
@@ -26,7 +30,7 @@ public class AiTimetableService {
 
     private final OpenAiClient openAiClient;
     private final ObjectMapper objectMapper;
-
+    private final AiTimetableRepository aiTimetableRepository;
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final TimetableRepository timetableRepository;
@@ -154,5 +158,63 @@ public class AiTimetableService {
         } catch (Exception e) {
             return 0; // TODO: 나중에 학교 교시 규칙에 맞게 변경
         }
+    }
+
+    /**
+     * AI 시간표 저장 (유저당 1개만 유지)
+     */
+    @Transactional
+    public AiTimetableResponse saveAiTimetable(AiTimetableSaveRequest request) {
+
+        if (request.getUserId() == null) {
+            throw new IllegalArgumentException("userId는 필수입니다.");
+        }
+        if (request.getTimetableId() == null) {
+            throw new IllegalArgumentException("timetableId는 필수입니다.");
+        }
+
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + request.getUserId()));
+
+        Timetable timetable = timetableRepository.findById(request.getTimetableId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시간표입니다. id=" + request.getTimetableId()));
+
+        // 유저당 하나만 관리: 있으면 update, 없으면 새로 생성
+        // 유저당 하나만 관리: 있으면 update, 없으면 새로 생성
+        AiTimetable aiTimetable = aiTimetableRepository.findByUser_Id(user.getId())
+                .orElseGet(() -> AiTimetable.builder()
+                        .user(user)
+                        .timetable(timetable)
+                        .build()
+                );
+
+        if (aiTimetable.getId() != null) {
+            // ✔ 요약문은 지금 안 쓰니까 null 유지하고, timetable만 교체
+            aiTimetable.update(
+                    null,       // resultSummary (지금은 안 씀)
+                    timetable   // 새로 선택한 시간표
+            );
+        }
+
+        AiTimetable saved = aiTimetableRepository.save(aiTimetable);
+        return AiTimetableResponse.from(saved);
+    }
+
+    /**
+     * AI 시간표 조회
+     */
+    @Transactional(readOnly = true)
+    public AiTimetableResponse getAiTimetable(Long userId) {
+        AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다. userId=" + userId));
+        return AiTimetableResponse.from(entity);
+    }
+
+    /**
+     * AI 시간표 삭제
+     */
+    @Transactional
+    public void deleteAiTimetable(Long userId) {
+        aiTimetableRepository.deleteByUser_Id(userId);
     }
 }

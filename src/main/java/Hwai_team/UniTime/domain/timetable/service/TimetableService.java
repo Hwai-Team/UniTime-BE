@@ -6,9 +6,11 @@ import Hwai_team.UniTime.domain.timetable.entity.Timetable;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Setter
 @Service
 @RequiredArgsConstructor
 public class TimetableService {

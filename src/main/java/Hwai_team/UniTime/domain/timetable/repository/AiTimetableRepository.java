@@ -1,16 +1,14 @@
-// src/main/java/Hwai_team/UniTime/domain/timetable/repository/AiTimetableRepository.java
 package Hwai_team.UniTime.domain.timetable.repository;
 
 import Hwai_team.UniTime.domain.timetable.entity.AiTimetable;
-import Hwai_team.UniTime.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import java.util.Optional;
 
-@Repository
 public interface AiTimetableRepository extends JpaRepository<AiTimetable, Long> {
 
-    // 특정 사용자가 요청한 AI 시간표 기록들 조회
-    List<AiTimetable> findAllByUser(User user);
+    // 유저당 하나만 관리할 거라 이렇게 사용
+    Optional<AiTimetable> findByUser_Id(Long userId);
+
+    void deleteByUser_Id(Long userId);
 }

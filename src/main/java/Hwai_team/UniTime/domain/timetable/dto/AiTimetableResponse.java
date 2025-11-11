@@ -1,21 +1,42 @@
-// src/main/java/Hwai_team/UniTime/domain/timetable/dto/AiTimetableResponse.java
 package Hwai_team.UniTime.domain.timetable.dto;
 
+import Hwai_team.UniTime.domain.timetable.entity.AiTimetable;
+import lombok.*;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import java.time.LocalDateTime;
 
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
+@Setter
+@NoArgsConstructor   // ✅ 추가
+@AllArgsConstructor
 public class AiTimetableResponse {
 
-    private Long timetableId;  // 생성된 시간표 ID
-    private String title;      // 시간표 제목 (예: "2025-1학기 전공 시간표")
-    private String userName;   // 사용자 이름
-    private String message;    // 상태 메시지 ("AI 시간표가 성공적으로 생성되었습니다.")
+    private Long id;
+    private Long userId;
+    private Long timetableId;
+    private String prompt;
+    private String title;
+    private String userName;
+    private String message;
+    private String resultSummary;
+    private LocalDateTime createdAt;
+
+    public static AiTimetableResponse from(AiTimetable entity) {
+        return AiTimetableResponse.builder()
+                .id(entity.getId())
+                .userId(entity.getUser().getId())
+                .timetableId(
+                        entity.getTimetable() != null
+                                ? entity.getTimetable().getId()
+                                : null
+                )
+                .prompt(entity.getPrompt())
+                .resultSummary(entity.getResultSummary())
+                .createdAt(entity.getCreatedAt())
+                .build();
+    }
 }
