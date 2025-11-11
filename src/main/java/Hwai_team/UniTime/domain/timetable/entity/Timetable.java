@@ -4,6 +4,7 @@ package Hwai_team.UniTime.domain.timetable.entity;
 import Hwai_team.UniTime.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +29,6 @@ public class Timetable {
     // 🔹 시간표 제목
     @Column(name = "title", nullable = false)
     private String title;
-
-
 
     // 🔹 학년도 / 학기
     @Column(nullable = false)
@@ -63,7 +62,16 @@ public class Timetable {
 
     // 🔹 편의 메서드
     public void addItem(TimetableItem item) {
-        items.add(item);
+        this.items.add(item);
         item.setTimetable(this);
+    }
+
+    public void changeTitle(String title) {
+        this.title = title;
+    }
+
+    // 필요하면 전체 비우는 메서드도 하나 만들어두면 편함
+    public void clearItems() {
+        this.items.clear();
     }
 }

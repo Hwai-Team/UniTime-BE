@@ -17,9 +17,9 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:4a9f1e2c7b4d9f2a9c1e7b4d9f2a9c1e} # 32자 이상 아무 문자열
-  access-token-validity-ms: 3600000      # 1시간
-  refresh-token-validity-ms: 1209600000  # 14일
+  secret: ${JWT_SECRET:4a9f1e2c7b4d9f2a9c1e7b4d9f2a9c1e}
+  access-token-validity-ms: 3600000
+  refresh-token-validity-ms: 1209600000
 
 
 logging:
