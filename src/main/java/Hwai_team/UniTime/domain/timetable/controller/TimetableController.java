@@ -70,4 +70,10 @@ public class TimetableController {
         AiTimetableResponse response = timetableService.generateAiTimetable(userId, request);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("ai/ai-generate")
+    public ResponseEntity<AiTimetableResponse> delete(){
+
+        
+    }
 }

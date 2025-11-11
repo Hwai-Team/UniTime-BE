@@ -55,8 +55,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",          // 로컬 React 프론트
-                "https://unitime-fe.vercel.app",  // 실제 배포 프론트 (도메인 바꿔도 됨)
-                "https://www.unitime-fe.vercel.app"
+                "https://sku-unitime.netlify.app"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
