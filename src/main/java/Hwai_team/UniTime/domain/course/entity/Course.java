@@ -1,10 +1,12 @@
+// src/main/java/Hwai_team/UniTime/domain/course/entity/Course.java
 package Hwai_team.UniTime.domain.course.entity;
 
+import Hwai_team.UniTime.domain.course.dto.CourseRequest;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA 권장
 @AllArgsConstructor
 @Builder
 @Entity
@@ -15,11 +17,14 @@ public class Course {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 학년 (1, 2, 3, 4 ...)
+    // 권장 학년 (1,2,3,4…)
     @Column(name = "grade_year")
     private Integer gradeYear;
 
-    // 이수구분 (전선, 전필, 교선 등)
+    @Column(name = "recommended_grade")
+    private Integer recommendedGrade;
+
+    // 이수구분 (전선/전필/교선 등)
     @Column(nullable = false, length = 20)
     private String category;
 
@@ -31,7 +36,10 @@ public class Course {
     @Column(nullable = false, length = 200)
     private String name;
 
-    // 분반 (01, 02, 10 ...)
+    @Column
+    private Integer hours;
+
+    // 분반 (01,02…)
     @Column(length = 10)
     private String section;
 
@@ -43,24 +51,27 @@ public class Course {
     @Column(length = 50)
     private String professor;
 
-    // 요일 (월, 화, 수, Thu, Fri 등. 나중에 필요하면 MON/TUE로 변환해도 됨)
-    @Column(length = 10)
+    // 요일 (예: MON/TUE/WED 또는 월/화/수)
+    @Column(name = "day_of_week", length = 10)
     private String dayOfWeek;
 
-    // 시작 교시 (21, 23 같은 숫자)
-    @Column
+    // 시작 교시
+    @Column(name = "start_period")
     private Integer startPeriod;
 
-    // 끝 교시
-    @Column
+    // 종료 교시
+    @Column(name = "end_period")
     private Integer endPeriod;
 
     // 강의실
     @Column(length = 50)
     private String room;
 
-    // Course 엔티티 안에 추가
-    public void updateFromRequest(Hwai_team.UniTime.domain.course.dto.CourseRequest req) {
+    @Column(length = 100)
+    private String department;
+
+    // 편의 메서드: 요청으로부터 값 업데이트
+    public void updateFromRequest(CourseRequest req) {
         this.gradeYear = req.getGradeYear();
         this.category = req.getCategory();
         this.courseCode = req.getCourseCode();
