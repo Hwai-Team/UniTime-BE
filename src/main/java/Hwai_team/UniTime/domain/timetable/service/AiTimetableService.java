@@ -1,4 +1,3 @@
-// src/main/java/Hwai_team/UniTime/domain/timetable/service/AiTimetableService.java
 package Hwai_team.UniTime.domain.timetable.service;
 
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
@@ -92,7 +91,7 @@ public class AiTimetableService {
                     .timetable(timetable)
                     .courseName(itemPlan.getCourseName())
                     .dayOfWeek(itemPlan.getDayOfWeek())
-                    .startPeriod(toPeriod(itemPlan.getStartTime()))  // "09:00" → 9교시 같은 식
+                    .startPeriod(toPeriod(itemPlan.getStartTime()))  // "09:00" → 9교시 같은 식 (임시)
                     .endPeriod(toPeriod(itemPlan.getEndTime()))
                     .room(itemPlan.getLocation())
                     .category(itemPlan.getPriority())
@@ -143,13 +142,11 @@ public class AiTimetableService {
                         .build()
                 );
 
-        if (aiTimetable.getId() != null) {
-            // ✔ 요약문은 지금 안 쓰니까 null 유지하고, timetable만 교체
-            aiTimetable.update(
-                    null,       // resultSummary (지금은 안 씀)
-                    timetable   // 새로 선택한 시간표
-            );
-        }
+        // ✅ resultSummary + timetable 둘 다 update에 위임
+        aiTimetable.update(
+                null,      // summary 사용 안 함
+                timetable  // timetable만 교체
+        );
 
         AiTimetable saved = aiTimetableRepository.save(aiTimetable);
         return AiTimetableResponse.from(saved);

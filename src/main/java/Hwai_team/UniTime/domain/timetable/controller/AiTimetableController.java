@@ -3,6 +3,7 @@ package Hwai_team.UniTime.domain.timetable.controller;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableResponse;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableSaveRequest;
+import Hwai_team.UniTime.domain.timetable.dto.TimetableResponse;
 import Hwai_team.UniTime.domain.timetable.entity.Timetable;
 import Hwai_team.UniTime.domain.timetable.service.AiTimetableService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -60,12 +61,14 @@ public class AiTimetableController {
                     description = "시간표 생성 성공",
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = Timetable.class),
+                            schema = @Schema(implementation = TimetableResponse.class),
                             examples = @ExampleObject(
                                     value = """
                                             {
                                               "id": 12,
                                               "title": "2025-1학기 전공 중심 시간표",
+                                              "year": 2025,
+                                              "semester": 1,
                                               "items": [
                                                 {
                                                   "courseName": "자료구조",
@@ -85,11 +88,12 @@ public class AiTimetableController {
             @ApiResponse(responseCode = "500", description = "AI 처리 중 오류 발생")
     })
     @PostMapping // ✅ POST /api/timetables/ai
-    public ResponseEntity<Timetable> createByAi(
+    public ResponseEntity<TimetableResponse> createByAi(
             @org.springframework.web.bind.annotation.RequestBody AiTimetableRequest request
     ) {
         Timetable timetable = aiTimetableService.createByAi(request);
-        return ResponseEntity.ok(timetable);
+        // ✅ 엔티티 직접 반환 대신 DTO로 변환
+        return ResponseEntity.ok(TimetableResponse.from(timetable));
     }
 
     // =======================
