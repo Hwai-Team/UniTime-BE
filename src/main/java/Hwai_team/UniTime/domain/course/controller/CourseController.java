@@ -1,11 +1,11 @@
 // src/main/java/Hwai_team/UniTime/domain/course/controller/CourseController.java
 package Hwai_team.UniTime.domain.course.controller;
 
-import Hwai_team.UniTime.domain.course.dto.CourseRequest;
 import Hwai_team.UniTime.domain.course.dto.CourseResponse;
 import Hwai_team.UniTime.domain.course.dto.CourseSearchCond;
+import Hwai_team.UniTime.domain.course.dto.TakenCourseToggleRequest;
+import Hwai_team.UniTime.domain.course.dto.TakenCourseToggleResponse;
 import Hwai_team.UniTime.domain.course.service.CourseService;
-import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,7 +28,7 @@ public class CourseController {
     private final CourseService courseService;
 
     // =======================
-    // 목록 조회 (Swagger 노출)
+    // 목록 조회
     // =======================
     @Operation(
             summary = "개설 강의 목록 조회",
@@ -37,7 +37,9 @@ public class CourseController {
                     "- category: 전선/전필/교선/교필 등\n" +
                     "- keyword: 과목명·코드·교수명 부분검색"
     )
-    @ApiResponse(responseCode = "200", description = "조회 성공",
+    @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
             content = @Content(
                     mediaType = "application/json",
                     schema = @Schema(implementation = CourseResponse.class),
@@ -83,7 +85,7 @@ public class CourseController {
     }
 
     // =======================
-    // 단건 조회 (Swagger 노출)
+    // 단건 조회
     // =======================
     @Operation(summary = "강의 상세 조회", description = "과목 ID로 단건 조회합니다.")
     @ApiResponse(responseCode = "200", description = "조회 성공")
@@ -93,27 +95,29 @@ public class CourseController {
     }
 
     // =======================
-    // 아래 3개는 운영용(Swagger 숨김)
+    // 이전 수강 여부 토글
     // =======================
-    @Hidden
-    @PostMapping
-    public ResponseEntity<CourseResponse> createCourse(@RequestBody CourseRequest request) {
-        return ResponseEntity.ok(courseService.createCourse(request));
-    }
-
-    @Hidden
-    @PutMapping("/{id}")
-    public ResponseEntity<CourseResponse> updateCourse(
-            @PathVariable Long id,
-            @RequestBody CourseRequest request
+    @Operation(
+            summary = "이전 강의 수강 체크 박스",
+            description = "체크박스 클릭 시 과목을 taken_courses(또는 academic_profile)에 추가/제거합니다."
+    )
+    @PatchMapping("/{courseId}/taken")
+    public ResponseEntity<TakenCourseToggleResponse> toggleTaken(
+            @PathVariable Long courseId,
+            @RequestBody TakenCourseToggleRequest request
     ) {
-        return ResponseEntity.ok(courseService.updateCourse(id, request));
+        return ResponseEntity.ok(courseService.toggleTaken(courseId, request));
     }
 
-    @Hidden
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCourse(@PathVariable Long id) {
-        courseService.deleteCourse(id);
-        return ResponseEntity.noContent().build();
+    // =======================
+    // 내가 수강했던 과목 ID 목록
+    // =======================
+    @Operation(
+            summary = "내가 수강했던 과목 ID 리스트",
+            description = "체크박스 초기 렌더링용 (어떤 과목이 이미 수강했는지 확인)"
+    )
+    @GetMapping("/taken")
+    public ResponseEntity<List<Long>> getTakenIds(@RequestParam Long userId) {
+        return ResponseEntity.ok(courseService.getTakenCourseIds(userId));
     }
 }

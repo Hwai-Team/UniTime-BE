@@ -1,16 +1,17 @@
 // src/main/java/Hwai_team/UniTime/domain/course/service/CourseService.java
 package Hwai_team.UniTime.domain.course.service;
 
-import Hwai_team.UniTime.domain.course.dto.CourseRequest;
-import Hwai_team.UniTime.domain.course.dto.CourseResponse;
-import Hwai_team.UniTime.domain.course.dto.CourseSearchCond;
+import Hwai_team.UniTime.domain.course.dto.*;
 import Hwai_team.UniTime.domain.course.entity.Course;
+import Hwai_team.UniTime.domain.course.entity.TakenCourse;
 import Hwai_team.UniTime.domain.course.repository.CourseRepository;
+import Hwai_team.UniTime.domain.course.repository.TakenCourseRepository;
+import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;   // ✅ 여기가 핵심 import
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,11 +22,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CourseService {
 
+    private final UserRepository userRepository;
+    private final TakenCourseRepository takenCourseRepository;
     private final CourseRepository courseRepository;
 
     @Transactional(readOnly = true)
     public List<CourseResponse> searchCourses(CourseSearchCond cond) {
-        // 기본: 필터 없으면 전체 반환
+        // 필터 전혀 없으면 전체
         if (cond.getGradeYear() == null && cond.getCategory() == null && cond.getKeyword() == null) {
             return courseRepository.findAll()
                     .stream()
@@ -33,18 +36,24 @@ public class CourseService {
                     .collect(Collectors.toList());
         }
 
-        // 조합 필터링
+        // 학년 + 이수구분
         if (cond.getGradeYear() != null && cond.getCategory() != null) {
-            return courseRepository.findByRecommendedGradeAndCategory(cond.getGradeYear(), cond.getCategory())
+            return courseRepository.findByRecommendedGradeAndCategory(
+                            cond.getGradeYear(), cond.getCategory()
+                    )
                     .stream()
                     .map(CourseResponse::from)
                     .collect(Collectors.toList());
-        } else if (cond.getGradeYear() != null) {
+        }
+        // 학년만
+        else if (cond.getGradeYear() != null) {
             return courseRepository.findByRecommendedGrade(cond.getGradeYear())
                     .stream()
                     .map(CourseResponse::from)
                     .collect(Collectors.toList());
-        } else if (cond.getKeyword() != null) {
+        }
+        // 키워드 검색
+        else if (cond.getKeyword() != null) {
             return courseRepository.findByNameContainingIgnoreCase(cond.getKeyword())
                     .stream()
                     .map(CourseResponse::from)
@@ -69,7 +78,8 @@ public class CourseService {
         Course course = Course.builder()
                 .courseCode(request.getCourseCode())
                 .name(request.getName())
-                .recommendedGrade(request.getRecommendedGrade())
+                .recommendedGrade(request.getRecommendedGrade()
+                )
                 .category(request.getCategory())
                 .credit(request.getCredit())
                 .hours(request.getHours())
@@ -100,7 +110,7 @@ public class CourseService {
         courseRepository.deleteById(id);
     }
 
-    // 확장용 (페이징 포함 검색)
+    // 확장용 (페이징 검색)
     @Transactional(readOnly = true)
     public Page<CourseResponse> getCourses(
             String q, String department, String category,
@@ -110,5 +120,52 @@ public class CourseService {
         Pageable pageable = PageRequest.of(page, size, sort);
         return courseRepository.search(q, department, category, grade, credit, dayOfWeek, pageable)
                 .map(CourseResponse::from);
+    }
+
+    /**
+     * 이전 수강 과목 토글
+     */
+    @Transactional
+    public TakenCourseToggleResponse toggleTaken(Long courseId, TakenCourseToggleRequest req) {
+        if (req.getUserId() == null || req.getTaken() == null) {
+            throw new IllegalArgumentException("userId와 taken은 필수입니다.");
+        }
+
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 과목입니다. id=" + courseId));
+        var user = userRepository.findById(req.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + req.getUserId()));
+
+        var existing = takenCourseRepository
+                .findByUser_IdAndCourse_Id(req.getUserId(), courseId);
+
+        if (Boolean.TRUE.equals(req.getTaken())) {
+            // 없으면 새로 저장
+            if (existing.isEmpty()) {
+                takenCourseRepository.save(
+                        TakenCourse.builder()
+                                .user(user)
+                                .course(course)
+                                .build()
+                );
+            }
+            return new TakenCourseToggleResponse(courseId, req.getUserId(), true);
+        } else {
+            // 있으면 삭제
+            existing.ifPresent(tc ->
+                    takenCourseRepository.deleteByUser_IdAndCourse_Id(
+                            req.getUserId(), courseId
+                    )
+            );
+            return new TakenCourseToggleResponse(courseId, req.getUserId(), false);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getTakenCourseIds(Long userId) {
+        return takenCourseRepository.findByUser_Id(userId)
+                .stream()
+                .map(tc -> tc.getCourse().getId())
+                .toList();
     }
 }

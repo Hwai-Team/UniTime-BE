@@ -2,6 +2,7 @@
 package Hwai_team.UniTime.domain.timetable.controller;
 
 import Hwai_team.UniTime.domain.timetable.dto.*;
+import Hwai_team.UniTime.domain.timetable.service.TimetableImageImportService;
 import Hwai_team.UniTime.domain.timetable.service.TimetableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -10,8 +11,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -22,7 +26,7 @@ import java.util.List;
 public class TimetableController {
 
     private final TimetableService timetableService;
-
+    private final TimetableImageImportService timetableImageImportService;
 
 
     // === 1) 내 시간표 목록 조회 ===
@@ -106,5 +110,33 @@ public class TimetableController {
     public ResponseEntity<Void> deleteTimetable(@PathVariable Long timetableId) {
         timetableService.deleteTimetable(timetableId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "이전 학기 시간표 사진 업로드",
+            description = """
+                에브리타임 등에서 캡쳐한 시간표 이미지를 업로드하면
+                OpenAI가 이미지 내용을 분석해서
+                강의명/요일/교시/강의실 리스트를 JSON으로 반환합니다.
+                """
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "분석 성공",
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = TimetableImageImportResponse.class)
+            )
+    )
+    @PostMapping(
+            value = "/import/image",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<TimetableImageImportResponse> importTimetableImage(
+            @RequestPart("file") MultipartFile file
+    ) {
+        TimetableImageImportResponse response =
+                timetableImageImportService.importFromImage(file);
+        return ResponseEntity.ok(response);
     }
 }
