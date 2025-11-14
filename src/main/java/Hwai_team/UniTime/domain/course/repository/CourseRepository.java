@@ -16,6 +16,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     Optional<Course> findByCourseCode(String courseCode);
 
     Optional<Course> findByCourseCodeAndSection(String courseCode, String section);
+    Optional<Course> findByName(String name);
 
     // 추천 학년 기준 조회 (엔티티 필드명: recommendedGrade)
     List<Course> findByRecommendedGrade(Integer recommendedGrade);
@@ -23,6 +24,10 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findByRecommendedGradeAndCategory(Integer recommendedGrade, String category);
 
     List<Course> findByNameContainingIgnoreCase(String keyword);
+
+    // ✅ 학과 + 추천 학년 기준 조회 (AI 시간표용 후보 과목)
+    List<Course> findByDepartmentAndRecommendedGrade(String department, Integer recommendedGrade);
+    boolean existsByCourseCode(String courseCode);
 
     @Query("""
         SELECT c FROM Course c

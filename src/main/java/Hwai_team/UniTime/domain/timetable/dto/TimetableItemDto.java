@@ -17,4 +17,5 @@ public class TimetableItemDto {
     private Integer endPeriod;
     private String room;        // "IT-101"
     private String category;    // "전공" / "교양" 등
+    private Long courseId;
 }

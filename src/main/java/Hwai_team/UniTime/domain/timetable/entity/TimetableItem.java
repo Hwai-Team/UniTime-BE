@@ -1,5 +1,6 @@
 package Hwai_team.UniTime.domain.timetable.entity;
 
+import Hwai_team.UniTime.domain.course.entity.Course;
 import jakarta.persistence.*;
 import lombok.*;
 import com.fasterxml.jackson.annotation.JsonBackReference;
@@ -37,6 +38,10 @@ public class TimetableItem {
 
     @Column
     private String category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "course_id")
+    private Course course;
 
     public void setTimetable(Timetable timetable) {
         this.timetable = timetable;

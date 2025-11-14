@@ -26,6 +26,13 @@ public class ChatService {
     private final OpenAiClient openAiClient;
     private final UserRepository userRepository;
 
+    /**
+     * 사용자의 입력 메시지를 받아 AI 응답을 생성하고,
+     * 시간표 생성 의도 여부를 판별한 뒤 DB에 기록하고 최종 응답을 반환합니다.
+     *
+     * @param request 유저 ID와 메시지를 포함한 요청 객체
+     * @return 생성된 AI 응답, 시간표 플랜 여부, 추출된 시간표 플랜 정보
+    */
     @Transactional
     public ChatResponse chat(ChatRequest request) {
 
@@ -163,4 +170,5 @@ public class ChatService {
                 .avoidDays(avoidDays)
                 .build();
     }
+
 }

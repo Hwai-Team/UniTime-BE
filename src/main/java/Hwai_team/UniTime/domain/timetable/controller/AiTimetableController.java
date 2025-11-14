@@ -20,9 +20,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/timetables/ai") // ✅ 복수형 + timetableApis 그룹에 딱 걸리게
+@RequestMapping("/api/timetables/ai")
 @RequiredArgsConstructor
-@Tag(name = "AI Timetable", description = "AI 기반 시간표 생성 / 저장 / 조회 API")
+@Tag(
+        name = "AI Timetable",
+        description = "AI 기반 시간표 생성 / AI 대표 시간표 조회·수정·삭제 API"
+)
 public class AiTimetableController {
 
     private final AiTimetableService aiTimetableService;
@@ -31,11 +34,28 @@ public class AiTimetableController {
     // 1) AI 시간표 생성
     // =======================
     @Operation(
-            summary = "AI 시간표 생성",
+            summary = "AI 시간표 생성 (Timetable + AiTimetable 자동 저장)",
             description = """
-                사용자의 자연어 요청을 기반으로 AI가 시간표를 자동 생성합니다.
-                예: "월수 위주로 전공 18학점 시간표 만들어줘"
-                """,
+                사용자의 자연어 요청과 유저 정보(학과/학년)를 기반으로,
+                DB에 저장된 강의 목록(courses) 중에서 AI가 과목을 선택해 시간표를 자동 생성합니다.
+                
+                동작 요약:
+                - userId로 유저를 조회해 학과/학년 정보를 가져옵니다.
+                - 해당 학과/추천 학년에 맞는 강의들을 courses 테이블에서 조회합니다.
+                - 조회한 강의 목록 + 사용자의 요구사항(message)을 프롬프트에 넣어
+                  OpenAI로부터 JSON 형식의 시간표(TimetablePlan)를 응답받습니다.
+                - 응답에 포함된 courseCode를 기준으로 실제 Course 정보를 매핑하여
+                  Timetable / TimetableItem 엔티티를 생성·저장합니다.
+                - 동시에, 생성된 Timetable을 해당 유저의 AI 대표 시간표(AiTimetable)로 자동 저장/갱신합니다.
+                  (유저당 AiTimetable은 1개만 유지)
+                
+                예시 시나리오:
+                - "전자컴퓨터공학과 2학년 시간표 만들어줘.
+                   통학이 멀어서 주 3일만 학교 가고 싶고,
+                   1교시는 피했으면 좋겠어.
+                   Advanced Calculus2는 꼭 재수강해야 해."
+                """
+            ,
             requestBody = @RequestBody(
                     required = true,
                     content = @Content(
@@ -46,7 +66,7 @@ public class AiTimetableController {
                                     value = """
                                             {
                                               "userId": 1,
-                                              "message": "월수 위주로 18학점 전공 시간표 만들어줘",
+                                              "message": "전자컴퓨터공학과 2학년 시간표 만들어줘. 통학이 멀어서 주 3일만 학교 가고 싶고 1교시는 피했으면 좋겠어. Advanced Calculus2는 꼭 재수강해야 해.",
                                               "year": 2025,
                                               "semester": 1
                                             }
@@ -58,25 +78,33 @@ public class AiTimetableController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "시간표 생성 성공",
+                    description = "시간표 생성 성공 (Timetable / AiTimetable 모두 저장 완료)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = TimetableResponse.class),
                             examples = @ExampleObject(
                                     value = """
                                             {
-                                              "id": 12,
-                                              "title": "2025-1학기 전공 중심 시간표",
+                                              "id": 47,
+                                              "title": "2025-1학기 전자컴퓨터공학과 2학년 추천 시간표",
                                               "year": 2025,
                                               "semester": 1,
                                               "items": [
                                                 {
+                                                  "courseName": "Advanced Calculus2",
+                                                  "dayOfWeek": "TUE",
+                                                  "startPeriod": 2,
+                                                  "endPeriod": 3,
+                                                  "room": "북-508",
+                                                  "category": "전필"
+                                                },
+                                                {
                                                   "courseName": "자료구조",
-                                                  "dayOfWeek": "MON",
-                                                  "startPeriod": 1,
-                                                  "endPeriod": 2,
+                                                  "dayOfWeek": "WED",
+                                                  "startPeriod": 3,
+                                                  "endPeriod": 4,
                                                   "room": "공학관 101",
-                                                  "category": "전공"
+                                                  "category": "전선"
                                                 }
                                               ]
                                             }
@@ -85,30 +113,35 @@ public class AiTimetableController {
                     )
             ),
             @ApiResponse(responseCode = "400", description = "유효하지 않은 요청 데이터"),
-            @ApiResponse(responseCode = "500", description = "AI 처리 중 오류 발생")
+            @ApiResponse(responseCode = "500", description = "AI 처리 또는 시간표 생성 중 오류 발생")
     })
-    @PostMapping // ✅ POST /api/timetables/ai
+    @PostMapping
     public ResponseEntity<TimetableResponse> createByAi(
             @org.springframework.web.bind.annotation.RequestBody AiTimetableRequest request
     ) {
         Timetable timetable = aiTimetableService.createByAi(request);
-        // ✅ 엔티티 직접 반환 대신 DTO로 변환
         return ResponseEntity.ok(TimetableResponse.from(timetable));
     }
 
     // =======================
-    // 2) AI 시간표 저장 (생성 결과를 DB에 기록)
+    // 2) AI 시간표 수동 저장/수정
     // =======================
     @Operation(
-            summary = "AI 시간표 저장/수정",
+            summary = "AI 대표 시간표 수동 저장/수정 (선택 기능)",
             description = """
-                    이미 생성된 시간표를 'AI 시간표'로 저장합니다.
-                    프론트 플로우:
-                    1) POST /api/timetables/ai 로 시간표 생성
-                    2) 생성된 timetable.id 를 들고 와서
-                    3) PUT /api/timetables/ai 로 userId + timetableId 보내서 저장
+                    이미 생성된 시간표(Timetable)를 이 유저의 'AI 대표 시간표'로 다시 지정하거나,
+                    설명(resultSummary)을 수정하고 싶을 때 사용하는 선택적인 API입니다.
                     
-                    resultSummary 는 선택(옵션) 필드입니다.
+                    기본 흐름:
+                    - 일반적인 경우: POST /api/timetables/ai 를 호출하면
+                      Timetable + AiTimetable 이 한 번에 자동으로 저장되므로,
+                      별도의 호출이 필요 없습니다.
+                    
+                    - 이 API는 다음처럼 사용합니다.
+                      1) 다른 API나 화면에서 임의의 시간표(Timetable)를 수정·생성한다.
+                      2) 해당 시간표의 id를 timetableId로 넘겨
+                         "이 시간표를 내 AI 대표 시간표로 쓰겠다" 라고 지정하거나
+                         resultSummary 를 갱신한다.
                     """
             ,
             requestBody = @RequestBody(
@@ -117,12 +150,12 @@ public class AiTimetableController {
                             mediaType = "application/json",
                             schema = @Schema(implementation = AiTimetableSaveRequest.class),
                             examples = @ExampleObject(
-                                    name = "AI 시간표 저장 예시",
+                                    name = "AI 시간표 수동 저장 예시",
                                     value = """
                                             {
                                               "userId": 1,
-                                              "timetableId": 12,
-                                              "resultSummary": "월수 오전 위주의 18학점 전공 시간표입니다."
+                                              "timetableId": 47,
+                                              "resultSummary": "통학이 멀어서 주 3일만 등교하고, 1교시는 피한 전자컴퓨터공학과 2학년 추천 시간표입니다."
                                             }
                                             """
                             )
@@ -132,7 +165,7 @@ public class AiTimetableController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "저장 성공",
+                    description = "AI 대표 시간표 저장/갱신 성공",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = AiTimetableResponse.class),
@@ -141,10 +174,9 @@ public class AiTimetableController {
                                             {
                                               "id": 3,
                                               "userId": 1,
-                                              "userName": "김민호",
-                                              "timetableId": 12,
-                                              "title": "2025-1학기 전공 중심 시간표",
-                                              "resultSummary": "월수 오전 위주의 18학점 전공 시간표입니다.",
+                                              "timetableId": 47,
+                                              "title": "2025-1학기 전자컴퓨터공학과 2학년 추천 시간표",
+                                              "resultSummary": "통학이 멀어서 주 3일만 등교하고, 1교시는 피한 전자컴퓨터공학과 2학년 추천 시간표입니다.",
                                               "createdAt": "2025-11-11T12:34:56"
                                             }
                                             """
@@ -154,7 +186,7 @@ public class AiTimetableController {
             @ApiResponse(responseCode = "400", description = "요청 값 오류"),
             @ApiResponse(responseCode = "404", description = "유저 또는 시간표를 찾을 수 없음")
     })
-    @PutMapping // ✅ PUT /api/timetables/ai
+    @PutMapping
     public ResponseEntity<AiTimetableResponse> saveAiTimetable(
             @org.springframework.web.bind.annotation.RequestBody AiTimetableSaveRequest request
     ) {
@@ -166,15 +198,36 @@ public class AiTimetableController {
     // 3) AI 시간표 조회
     // =======================
     @Operation(
-            summary = "AI 시간표 조회",
-            description = "특정 유저가 저장한 AI 시간표(유저당 1개 기준)를 조회합니다."
+            summary = "AI 대표 시간표 메타 정보 조회",
+            description = """
+                    특정 유저가 저장한 AI 대표 시간표(AiTimetable)를 조회합니다.
+                    
+                    - 유저당 AiTimetable은 1개만 유지합니다.
+                    - 응답으로 돌아오는 timetableId 를 이용해,
+                      일반 시간표 조회 API로 실제 시간표 상세(Timetable + TimetableItem)를 조회할 수 있습니다.
+                    """
     )
     @ApiResponse(
             responseCode = "200",
             description = "조회 성공",
-            content = @Content(schema = @Schema(implementation = AiTimetableResponse.class))
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = AiTimetableResponse.class),
+                    examples = @ExampleObject(
+                            value = """
+                                    {
+                                      "id": 3,
+                                      "userId": 1,
+                                      "timetableId": 47,
+                                      "title": "2025-1학기 전자컴퓨터공학과 2학년 추천 시간표",
+                                      "resultSummary": "통학이 멀고 1교시를 피하고 싶은 사용자를 위한 주 3일 등교 시간표입니다.",
+                                      "createdAt": "2025-11-11T12:34:56"
+                                    }
+                                    """
+                    )
+            )
     )
-    @GetMapping // ✅ GET /api/timetables/ai?userId=1
+    @GetMapping
     public ResponseEntity<AiTimetableResponse> getAiTimetable(
             @Parameter(description = "조회할 유저 ID", example = "1")
             @RequestParam Long userId
@@ -187,11 +240,17 @@ public class AiTimetableController {
     // 4) AI 시간표 삭제
     // =======================
     @Operation(
-            summary = "AI 시간표 삭제",
-            description = "특정 유저가 저장한 AI 시간표 기록을 삭제합니다."
+            summary = "AI 대표 시간표 삭제",
+            description = """
+                    특정 유저가 저장한 AI 대표 시간표(AiTimetable) 기록을 삭제합니다.
+                    
+                    주의:
+                    - Timetable / TimetableItem 자체를 삭제하는 것이 아니라,
+                      "이 시간표를 AI 추천 시간표로 사용한다"는 연결(AiTimetable)만 제거합니다.
+                    """
     )
-    @ApiResponse(responseCode = "204", description = "삭제 성공")
-    @DeleteMapping // ✅ DELETE /api/timetables/ai?userId=1
+    @ApiResponse(responseCode = "204", description = "삭제 성공 (응답 본문 없음)")
+    @DeleteMapping
     public ResponseEntity<Void> deleteAiTimetable(
             @Parameter(description = "삭제할 유저 ID", example = "1")
             @RequestParam Long userId

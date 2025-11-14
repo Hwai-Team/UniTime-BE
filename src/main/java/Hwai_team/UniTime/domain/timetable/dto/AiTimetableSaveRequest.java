@@ -11,4 +11,5 @@ public class AiTimetableSaveRequest {
 
     private Long userId;        // 어떤 유저의 시간표인지
     private Long timetableId;   // 이미 저장된 Timetable의 id
+    private String resultSummary;
 }

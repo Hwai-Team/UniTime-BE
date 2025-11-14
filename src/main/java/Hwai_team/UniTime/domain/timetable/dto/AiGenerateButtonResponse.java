@@ -1,7 +1,9 @@
 package Hwai_team.UniTime.domain.timetable.dto;
 
+// 버튼 노출 + 시간표 생성에 넘길 정리된 메시지까지 포함
 public record AiGenerateButtonResponse(
-        boolean showButton,   // true 면 버튼 보여주기
-        String reason,        // 왜 그렇게 판단했는지 (디버깅/로그용)
-        String suggestionText // 버튼 옆에 띄울 안내 문구 (예: "AI로 시간표 자동 생성해볼까요?")
+        boolean visible,
+        String reason,
+        String suggestionText,      // "AI로 이번 학기 시간표를 자동으로..." 같은 문구
+        String timetableContextMsg  // ✅ 시간표 생성 쪽에 넘길 정리된 메시지
 ) {}

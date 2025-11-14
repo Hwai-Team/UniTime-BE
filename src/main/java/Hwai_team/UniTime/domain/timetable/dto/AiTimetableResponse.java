@@ -1,23 +1,24 @@
+// src/main/java/Hwai_team/UniTime/domain/timetable/dto/AiTimetableResponse.java
 package Hwai_team.UniTime.domain.timetable.dto;
 
 import Hwai_team.UniTime.domain.timetable.entity.AiTimetable;
 import lombok.*;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
+
 import java.time.LocalDateTime;
 
 @Getter
-@Builder
-@Setter
-@NoArgsConstructor   // ✅ 추가
+@Setter   // 🔥 이거 중요
+@NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class AiTimetableResponse {
 
     private Long id;
     private Long userId;
+
+    // 🔥 이 필드가 반드시 있어야 함
     private Long timetableId;
+
     private String prompt;
     private String title;
     private String userName;
@@ -35,6 +36,11 @@ public class AiTimetableResponse {
                                 : null
                 )
                 .prompt(entity.getPrompt())
+                .title(entity.getTimetable() != null
+                        ? entity.getTimetable().getTitle()
+                        : null)
+                .userName(entity.getUser().getName())
+                .message(null) // 필요하면 엔티티에서 가져오도록 수정
                 .resultSummary(entity.getResultSummary())
                 .createdAt(entity.getCreatedAt())
                 .build();
