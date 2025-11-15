@@ -2,12 +2,14 @@
 package Hwai_team.UniTime.domain.timetable.dto;
 
 import Hwai_team.UniTime.domain.timetable.entity.AiTimetable;
+import Hwai_team.UniTime.domain.timetable.entity.Timetable;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
-@Setter   // 🔥 이거 중요
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -15,8 +17,6 @@ public class AiTimetableResponse {
 
     private Long id;
     private Long userId;
-
-    // 🔥 이 필드가 반드시 있어야 함
     private Long timetableId;
 
     private String prompt;
@@ -26,23 +26,28 @@ public class AiTimetableResponse {
     private String resultSummary;
     private LocalDateTime createdAt;
 
+    private List<TimetableItemDto> items;
+
     public static AiTimetableResponse from(AiTimetable entity) {
+        Timetable t = entity.getTimetable();
+
         return AiTimetableResponse.builder()
                 .id(entity.getId())
                 .userId(entity.getUser().getId())
-                .timetableId(
-                        entity.getTimetable() != null
-                                ? entity.getTimetable().getId()
-                                : null
-                )
+                .timetableId(t != null ? t.getId() : null)
                 .prompt(entity.getPrompt())
-                .title(entity.getTimetable() != null
-                        ? entity.getTimetable().getTitle()
-                        : null)
+                .title(t != null ? t.getTitle() : null)
                 .userName(entity.getUser().getName())
-                .message(null) // 필요하면 엔티티에서 가져오도록 수정
+                .message(null)
                 .resultSummary(entity.getResultSummary())
                 .createdAt(entity.getCreatedAt())
+                .items(
+                        t != null && t.getItems() != null
+                                ? t.getItems().stream()
+                                .map(TimetableItemDto::from)
+                                .toList()
+                                : List.of()
+                )
                 .build();
     }
 }

@@ -1,6 +1,8 @@
 // src/main/java/Hwai_team/UniTime/domain/timetable/service/AiTimetableService.java
 package Hwai_team.UniTime.domain.timetable.service;
 
+import Hwai_team.UniTime.domain.course.entity.Course;
+import Hwai_team.UniTime.domain.course.repository.CourseRepository;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableResponse;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableSaveRequest;
@@ -10,8 +12,6 @@ import Hwai_team.UniTime.domain.timetable.entity.TimetableItem;
 import Hwai_team.UniTime.domain.timetable.repository.AiTimetableRepository;
 import Hwai_team.UniTime.domain.timetable.repository.TimetableItemRepository;
 import Hwai_team.UniTime.domain.timetable.repository.TimetableRepository;
-import Hwai_team.UniTime.domain.course.entity.Course;
-import Hwai_team.UniTime.domain.course.repository.CourseRepository;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,14 +32,17 @@ public class AiTimetableService {
     private static final int MAX_CREDITS = 18;
     private static final int MAX_MAJOR_COUNT = 5; // 전공 최대 개수
 
-    private final ObjectMapper objectMapper; // (확장 대비)
+    private final ObjectMapper objectMapper;
     private final AiTimetableRepository aiTimetableRepository;
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final TimetableRepository timetableRepository;
     private final TimetableItemRepository timetableItemRepository;
 
-    /** DB 기반 생성: 재수강(무조건) → 전공(최대 5개, 학년 정확히 일치) → 교양(교필/교선) */
+    /**
+     * DB 기반 생성:
+     * 재수강(우선) → 전공(최대 5개, 학년 정확 일치) → 교양(교필/교선)
+     */
     @Transactional
     public Timetable createByAi(AiTimetableRequest request) {
         // 1) 유저
@@ -50,8 +53,8 @@ public class AiTimetableService {
         final String message = nullToEmpty(request.getMessage());
 
         // 2) 선호 파싱
-        final Integer maxDays = parseMaxDays(message).orElse(null);       // "주 3일"
-        final boolean avoidFirstPeriod = detectAvoidFirstPeriod(message); // 1교시 피하기
+        final Integer maxDays = parseMaxDays(message).orElse(null);       // "주 3일" 등
+        final boolean avoidFirstPeriod = detectAvoidFirstPeriod(message); // 1교시 피하기 여부
 
         // 3) 전체 과목
         List<Course> all = courseRepository.findAll();
@@ -59,11 +62,16 @@ public class AiTimetableService {
         // 4) 재수강 후보(메시지 내 이름/코드 포함) — 학년·학과 제한 없이 우선 포함
         List<Course> retake = pickRetakeCourses(message, all);
 
-        // 5) 전공 후보 — 학과 ‘완전 일치’ + 추천학년 ‘정확히 동일’(null 불허)
+        // 5) 전공 후보 — 학과 완전 일치 + 추천학년 정확히 동일
+        // 5) 전공 후보 — 학과 ‘완전 일치’ + 추천학년 == 유저 학년
         List<Course> major = all.stream()
-                .filter(this::isMajorCategory)
-                .filter(c -> deptStrictMatch(userDept, normDept(c.getDepartment())))
-                .filter(c -> recGradeExactMatch(userGrade, c.getRecommendedGrade())) // ★ 학년 정확히 일치
+                .filter(this::isMajorCategory)  // 전공/전심/전선/전필 등
+                .filter(c -> deptStrictMatch(userDept, normDept(c.getDepartment()))) // 학과 완전 일치
+                .filter(c -> {
+                    Integer rec = c.getRecommendedGrade();
+                    // 🔥 추천학년이 없으면 버리고, 유저 학년이랑 정확히 같을 때만 통과
+                    return rec != null && userGrade != null && rec.equals(userGrade);
+                })
                 .collect(Collectors.toList());
 
         // 6) 교양 후보(교필/교선)
@@ -71,49 +79,65 @@ public class AiTimetableService {
                 .filter(this::isLiberalCategory)
                 .collect(Collectors.toList());
 
-        // 7) 시간표 엔티티
+        // 7) 시간표 엔티티 생성
         Timetable timetable = Timetable.builder()
                 .owner(user)
                 .year(request.getYear())
                 .semester(request.getSemester())
                 .title(buildTitle(user, request))
+                .items(new ArrayList<>()) // NPE 방지
                 .build();
         timetableRepository.save(timetable);
+
 
         int totalCredits = 0;
         Set<String> usedCourseCodes = new HashSet<>();
         Map<String, List<int[]>> occupied = new HashMap<>(); // day -> [start,end)
         Set<String> usedDays = new HashSet<>();
+        Set<String> usedCourseNames = new HashSet<>();       // 이름 중복 방지용
 
         CourseAdder adder = new CourseAdder(
-                timetable, timetableItemRepository, usedCourseCodes, occupied, usedDays
+                timetable,
+                timetableItemRepository,
+                usedCourseCodes,
+                occupied,
+                usedDays,
+                usedCourseNames
         );
 
-        // 정렬: 전공은 시간 빠른 순(1교시 회피 X), 교양은 1교시 회피 옵션 반영
+        // 정렬: 전공은 그냥 시간 빠른 순, 교양은 1교시 회피 옵션 반영
         major.sort(byStartPeriodWithAvoid(false));
         liberal.sort(byStartPeriodWithAvoid(avoidFirstPeriod));
 
         // 7-1) 재수강: 충돌/요일제한 무시하고 우선 포함(학점만 체크)
-        totalCredits = adder.addCourses(retake, totalCredits, MAX_CREDITS, maxDays,
-                false, /*applyFirstPeriodFilter*/
-                true,  /*forceAddRetake*/
-                true   /*ignoreDayLimit*/
+        totalCredits = adder.addCourses(
+                retake,
+                totalCredits,
+                MAX_CREDITS,
+                maxDays,
+                false,  // applyFirstPeriodFilter
+                true,   // forceAddRetake
+                true    // ignoreDayLimit
         );
 
-        // 현재까지 들어간 "전공" 개수(재수강에 전공이 포함되었을 수 있음)
+        // 현재까지 들어간 전공 개수(재수강에 전공 포함 가능)
         int majorCountSoFar = countMajorsInTimetable(timetable);
 
-        // 7-2) 전공: 최대 5개까지만 추가 (요일 제한은 완화, 충돌은 금지)
+        // 7-2) 전공: 최대 5개까지만 추가
         int remainingMajorSlots = Math.max(0, MAX_MAJOR_COUNT - majorCountSoFar);
         if (remainingMajorSlots > 0) {
             List<Course> majorFiltered = major.stream()
                     .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
                     .collect(Collectors.toList());
 
-            totalCredits = adder.addCoursesUpTo(majorFiltered, totalCredits, MAX_CREDITS, maxDays,
-                    false, /*applyFirstPeriodFilter*/
-                    false, /*forceAddRetake*/
-                    true,  /*ignoreDayLimit: 전공은 요일 제한 완화*/
+            totalCredits = adder.addCoursesUpTo(
+                    majorFiltered,
+                    totalCredits,
+                    MAX_CREDITS,
+                    maxDays,
+                    false,  // applyFirstPeriodFilter
+                    false,  // forceAddRetake
+                    true,   // ignoreDayLimit: 전공은 요일 제한 완화
                     remainingMajorSlots
             );
         }
@@ -123,22 +147,30 @@ public class AiTimetableService {
                 .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
                 .collect(Collectors.toList());
 
-        totalCredits = adder.addCourses(liberalFiltered, totalCredits, MAX_CREDITS, maxDays,
+        totalCredits = adder.addCourses(
+                liberalFiltered,
+                totalCredits,
+                MAX_CREDITS,
+                maxDays,
                 avoidFirstPeriod,
                 false,
                 false
         );
 
-        // 7-4) 교양 2차(백업 플랜): 아직 18학점 미만이면 요일 제한을 무시하고 다시 시도
+        // 7-4) 교양 2차: 아직 18학점 미만이면 요일 제한만 풀어서 한 번 더 시도
         if (totalCredits < MAX_CREDITS) {
             List<Course> liberalSecond = liberal.stream()
                     .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
                     .collect(Collectors.toList());
 
-            totalCredits = adder.addCourses(liberalSecond, totalCredits, MAX_CREDITS, maxDays,
-                    avoidFirstPeriod, /* 1교시 회피는 유지 */
+            totalCredits = adder.addCourses(
+                    liberalSecond,
+                    totalCredits,
+                    MAX_CREDITS,
+                    maxDays,
+                    avoidFirstPeriod, // 1교시 회피는 유지
                     false,
-                    true              /* ★ 요일 제한 무시 */
+                    true              // ignoreDayLimit
             );
         }
 
@@ -155,8 +187,27 @@ public class AiTimetableService {
 
         return timetable;
     }
+    private boolean isMajorGradeMatch(Integer userGrade, Course c) {
+        if (userGrade == null) return true; // 학년 정보 없으면 필터 안 함
 
-    /** (옵션) 수동 저장/수정 */
+        Integer gradeYear = c.getGradeYear();        // grade_year 컬럼
+        Integer rec = c.getRecommendedGrade();       // recommended_grade 컬럼
+
+        // 1순위: grade_year가 있으면 그걸로 정확 일치
+        if (gradeYear != null) {
+            return gradeYear.equals(userGrade);
+        }
+
+        // 2순위: grade_year는 없고 recommended_grade만 있으면 그걸로 정확 일치
+        if (rec != null) {
+            return rec.equals(userGrade);
+        }
+
+        // 둘 다 없으면 전공에서 제외 (너무 리스크 있으니까)
+        return false;
+    }
+
+    /** 수동 저장/수정 */
     @Transactional
     public AiTimetableResponse saveAiTimetable(AiTimetableSaveRequest request) {
         if (request.getUserId() == null) throw new IllegalArgumentException("userId는 필수입니다.");
@@ -196,7 +247,19 @@ public class AiTimetableService {
     // 내부 유틸 / 헬퍼
     // =======================
 
-    /** 전공 카테고리 여부(전*, 전공*, 전필/전선, major) */
+    /** 전공 과목 학년 매칭: recommended_grade가 유저 학년과 정확히 같은 과목만 허용 */
+    private boolean isMajorRecommendedGradeMatch(Integer userGrade, Course c) {
+        if (userGrade == null) return true;  // 유저 학년 정보 없으면 필터 안 함
+
+        Integer rec = c.getRecommendedGrade();   // DB의 recommended_grade 컬럼 매핑
+
+        // 추천학년이 비어 있으면 전공 후보에서 제외
+        if (rec == null) return false;
+
+        // 추천학년이 유저 학년이랑 딱 맞는 것만 허용
+        return rec.equals(userGrade);
+    }
+    /** 전공 카테고리 여부 */
     private boolean isMajorCategory(Course c) {
         String cat = nullToEmpty(c.getCategory());
         return cat.startsWith("전") || cat.contains("전공") || cat.equals("전필") || cat.equals("전선")
@@ -221,13 +284,13 @@ public class AiTimetableService {
         return cnt;
     }
 
-    /** 학과 엄격 매칭(정규화 후 완전일치) */
+    /** 학과 엄격 매칭(정규화 후 완전 일치) */
     private boolean deptStrictMatch(String userDept, String courseDept) {
         if (userDept.isEmpty() || courseDept.isEmpty()) return false;
         return userDept.equals(courseDept);
     }
 
-    /** 추천학년 ‘정확히 동일’만 허용 (null은 불일치) */
+    /** 추천학년 정확 일치만 허용 */
     private boolean recGradeExactMatch(Integer userGrade, Integer rec) {
         if (userGrade == null || rec == null) return false;
         return rec.equals(userGrade);
@@ -250,7 +313,9 @@ public class AiTimetableService {
 
     private static String buildResultSummary(Timetable timetable) {
         int credits = timetable.getItems() == null ? 0 :
-                timetable.getItems().stream().mapToInt(i -> i.getCourse() != null ? i.getCourse().getCredit() : 0).sum();
+                timetable.getItems().stream()
+                        .mapToInt(i -> i.getCourse() != null ? i.getCourse().getCredit() : 0)
+                        .sum();
         long majorCnt = timetable.getItems() == null ? 0 :
                 timetable.getItems().stream().filter(i -> {
                     String cat = nullToEmpty(i.getCategory());
@@ -263,7 +328,8 @@ public class AiTimetableService {
                     return cat.equals("교필") || cat.equals("교선");
                 }).count();
 
-        return String.format("전공 %d개(최대 %d), 교양 %d개, 총 %d학점", majorCnt, MAX_MAJOR_COUNT, liberalCnt, credits);
+        return String.format("전공 %d개(최대 %d), 교양 %d개, 총 %d학점",
+                majorCnt, MAX_MAJOR_COUNT, liberalCnt, credits);
     }
 
     private static Comparator<Course> byStartPeriodWithAvoid(boolean avoidFirstPeriod) {
@@ -278,19 +344,20 @@ public class AiTimetableService {
         };
     }
 
-    /** 재수강 후보 탐색: 이름/코드가 메시지에 포함되면 픽업 (공백 제거/소문자 비교) */
+    /** 재수강 후보 탐색: 메시지에 이름/코드가 등장하면 픽업 */
     private static List<Course> pickRetakeCourses(String message, List<Course> all) {
         String msg = normalize(message);
-        boolean cue = msg.contains("재수강") || msg.contains("재수") ||
-                msg.contains("retake") || msg.contains("repeat") ||
-                msg.contains("꼭들") || msg.contains("반드시") || msg.contains("다시들");
+        boolean cue = msg.contains("재수강") || msg.contains("재수")
+                || msg.contains("retake") || msg.contains("repeat")
+                || msg.contains("꼭들") || msg.contains("반드시") || msg.contains("다시들");
         if (!cue) return new ArrayList<>();
 
         List<Course> list = new ArrayList<>();
         for (Course c : all) {
             String name = normalize(c.getName());
             String code = normalize(c.getCourseCode());
-            if ((!name.isEmpty() && containsToken(msg, name)) || (!code.isEmpty() && msg.contains(code))) {
+            if ((!name.isEmpty() && containsToken(msg, name))
+                    || (!code.isEmpty() && msg.contains(code))) {
                 list.add(c);
             }
         }
@@ -301,8 +368,9 @@ public class AiTimetableService {
         s = nullToEmpty(s).toLowerCase().replaceAll("\\s+", "");
         return Normalizer.normalize(s, Normalizer.Form.NFC);
     }
+
     private static boolean containsToken(String hay, String needle) {
-        if (needle.length() < 3) return false; // 너무 짧은 토큰 방지
+        if (needle.length() < 3) return false;
         return hay.contains(needle);
     }
 
@@ -315,6 +383,7 @@ public class AiTimetableService {
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
+
     private static int safeInt(Integer i) {
         return i == null ? 0 : i;
     }
@@ -322,19 +391,23 @@ public class AiTimetableService {
     private static Optional<Integer> parseMaxDays(String msg) {
         Matcher m = Pattern.compile("주\\s*(\\d)\\s*일").matcher(nullToEmpty(msg));
         if (m.find()) {
-            try { return Optional.of(Integer.parseInt(m.group(1))); }
-            catch (NumberFormatException ignored) {}
+            try {
+                return Optional.of(Integer.parseInt(m.group(1)));
+            } catch (NumberFormatException ignored) {
+            }
         }
         return Optional.empty();
     }
 
     private static boolean detectAvoidFirstPeriod(String msg) {
         String m = nullToEmpty(msg).replaceAll("\\s+", "");
-        return (m.contains("1교시") || m.contains("첫교시")) &&
-                (m.contains("피") || m.contains("빼") || m.contains("안") || m.contains("없"));
+        return (m.contains("1교시") || m.contains("첫교시"))
+                && (m.contains("피") || m.contains("빼") || m.contains("안") || m.contains("없"));
     }
 
-    /** 내부 헬퍼: 과목 추가(충돌/요일/학점/선호/중복) 처리 */
+    // =======================
+    // 과목 추가 헬퍼
+    // =======================
     private static class CourseAdder {
         private final Timetable timetable;
         private final TimetableItemRepository repo;
@@ -342,16 +415,21 @@ public class AiTimetableService {
         private final Map<String, List<int[]>> occupied; // day -> [start,end)
         private final Set<String> usedDays;
 
+        // 과목 이름(정규화) 중복 체크용
+        private final Set<String> usedNames;
+
         private CourseAdder(Timetable timetable,
                             TimetableItemRepository repo,
                             Set<String> usedCodes,
                             Map<String, List<int[]>> occupied,
-                            Set<String> usedDays) {
+                            Set<String> usedDays,
+                            Set<String> usedNames) {
             this.timetable = timetable;
             this.repo = repo;
             this.usedCodes = usedCodes;
             this.occupied = occupied;
             this.usedDays = usedDays;
+            this.usedNames = usedNames;
         }
 
         int addCourses(List<Course> candidates,
@@ -364,7 +442,10 @@ public class AiTimetableService {
 
             for (Course c : candidates) {
                 if (currentCredits >= maxCredits) break;
-                if (!canAdd(c, currentCredits, maxCredits, maxDays, applyFirstPeriodFilter, forceAddRetake, ignoreDayLimit)) continue;
+                if (!canAdd(c, currentCredits, maxCredits, maxDays,
+                        applyFirstPeriodFilter, forceAddRetake, ignoreDayLimit)) {
+                    continue;
+                }
                 currentCredits = add(c, currentCredits);
             }
             return currentCredits;
@@ -383,7 +464,10 @@ public class AiTimetableService {
             for (Course c : candidates) {
                 if (currentCredits >= maxCredits) break;
                 if (added >= maxToAdd) break;
-                if (!canAdd(c, currentCredits, maxCredits, maxDays, applyFirstPeriodFilter, forceAddRetake, ignoreDayLimit)) continue;
+                if (!canAdd(c, currentCredits, maxCredits, maxDays,
+                        applyFirstPeriodFilter, forceAddRetake, ignoreDayLimit)) {
+                    continue;
+                }
                 currentCredits = add(c, currentCredits);
                 added++;
             }
@@ -397,8 +481,15 @@ public class AiTimetableService {
                                boolean applyFirstPeriodFilter,
                                boolean forceAddRetake,
                                boolean ignoreDayLimit) {
+
             String code = nullToEmpty(c.getCourseCode());
             if (!code.isEmpty() && usedCodes.contains(code)) return false;
+
+            // 🔥 이름 기준 중복 검사 (공백/대소문자 무시)
+            String nameKey = normalize(c.getName());
+            if (!nameKey.isEmpty() && usedNames.contains(nameKey)) {
+                return false;
+            }
 
             String day = nullToEmpty(c.getDayOfWeek());
             int start = safeInt(c.getStartPeriod());
@@ -423,7 +514,7 @@ public class AiTimetableService {
         private int add(Course c, int currentCredits) {
             TimetableItem item = TimetableItem.builder()
                     .timetable(timetable)
-                    .course(c) // FK 저장 → DTO에서 courseId 제공 가능
+                    .course(c)
                     .courseName(c.getName())
                     .dayOfWeek(c.getDayOfWeek())
                     .startPeriod(c.getStartPeriod())
@@ -436,7 +527,14 @@ public class AiTimetableService {
 
             String code = nullToEmpty(c.getCourseCode());
             if (!code.isEmpty()) usedCodes.add(code);
-            occupy(nullToEmpty(c.getDayOfWeek()), safeInt(c.getStartPeriod()), safeInt(c.getEndPeriod()) + 1);
+
+            String nameKey = normalize(c.getName());
+            if (!nameKey.isEmpty()) usedNames.add(nameKey);
+
+            occupy(nullToEmpty(c.getDayOfWeek()),
+                    safeInt(c.getStartPeriod()),
+                    safeInt(c.getEndPeriod()) + 1);
+
             return currentCredits + safeInt(c.getCredit());
         }
 
@@ -453,7 +551,8 @@ public class AiTimetableService {
         private void occupy(String day, int start, int endExclusive) {
             if (day.isEmpty()) return;
             usedDays.add(day);
-            occupied.computeIfAbsent(day, k -> new ArrayList<>()).add(new int[]{start, endExclusive});
+            occupied.computeIfAbsent(day, k -> new ArrayList<>())
+                    .add(new int[]{start, endExclusive});
         }
     }
 }

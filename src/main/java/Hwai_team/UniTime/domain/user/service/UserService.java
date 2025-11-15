@@ -8,9 +8,7 @@ import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import Hwai_team.UniTime.global.jwt.JwtTokenProvider;
 import Hwai_team.UniTime.domain.user.dto.TokenResponse;
-
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +22,13 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
-    // 회원가입
+    /**
+     * 회원가입을 수행하고 액세스/리프레시 토큰과 사용자 정보를 반환한다.
+     *
+     * @param request 회원가입 요청 정보(이메일, 비밀번호, 이름, 학번, 학과, 학년, 졸업년도)
+     * @return accessToken, refreshToken, 사용자 정보가 담긴 AuthResponse
+     * @throws IllegalArgumentException 이미 가입된 이메일일 경우 발생
+     */
     public AuthResponse signup(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("이미 가입된 이메일입니다.");
@@ -48,7 +52,13 @@ public class UserService {
         return new AuthResponse(accessToken, refreshToken, new UserResponse(saved));
     }
 
-    // 로그인
+    /**
+     * 로그인을 수행하고 액세스/리프레시 토큰과 사용자 정보를 반환한다.
+     *
+     * @param request 로그인 요청 정보(이메일, 비밀번호)
+     * @return 인증 성공 시 생성된 accessToken, refreshToken, 사용자 정보가 담긴 AuthResponse
+     * @throws IllegalArgumentException 이메일 또는 비밀번호가 일치하지 않을 경우 발생
+     */
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
@@ -64,7 +74,14 @@ public class UserService {
     }
 
 
-    // 리프레시 토큰으로 액세스 토큰 재발급
+    /**
+     * 리프레시 토큰을 검증하고 새로운 액세스/리프레시 토큰을 재발급한다.
+     *
+     * @param refreshToken 클라이언트가 보낸 기존 리프레시 토큰
+     * @return 새로 발급된 accessToken, refreshToken을 담은 TokenResponse
+     * @throws IllegalArgumentException 리프레시 토큰이 없거나, 비어 있거나, 유효하지 않거나, 해당 토큰의 유저가 존재하지 않을 경우 발생
+     *
+     */
     public TokenResponse refresh(String refreshToken) {
 
         if (refreshToken == null || refreshToken.isBlank()) {
@@ -88,14 +105,15 @@ public class UserService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
-    public UserProfileResponse getMyProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
-
-        return UserProfileResponse.from(user);
-    }
-
+    /**
+     * 사용자의 프로필 정보를 부분 수정한다.
+     * 요청 값 중 null이 아닌 필드만 업데이트된다.
+     *
+     * @param userId 수정할 사용자 ID
+     * @param request 프로필 수정 요청 정보(이름, 학번, 학과, 학년, 졸업년도 중 변경할 값)
+     * @return 수정된 사용자 정보를 담은 UserProfileResponse
+     * @throws IllegalArgumentException 존재하지 않는 사용자 ID일 경우 발생
+     */
     @Transactional
     public UserProfileResponse updateMyProfile(Long userId, UserProfileUpdateRequest request) {
         User user = userRepository.findById(userId)
@@ -120,6 +138,14 @@ public class UserService {
 
         return UserProfileResponse.from(user);
     }
+
+    /**
+     * 사용자 프로필 정보를 조회한다.
+     *
+     * @param userId 조회할 사용자 ID
+     * @return 해당 사용자의 프로필 정보를 담은 UserProfileResponse
+     * @throws IllegalArgumentException 사용자 ID가 존재하지 않을 경우 발생
+     */
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
         User user = userRepository.findById(userId)

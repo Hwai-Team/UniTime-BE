@@ -59,7 +59,7 @@ public class PromptTemplates {
         - courseCode, name, dayOfWeek, startPeriod, endPeriod, room, professor 값은 그대로 사용해야 한다.
         - 과목명(name)은 반드시 위 JSON에 있는 한국어 그대로 써라.
         - 영어 이름, 약칭, 번역된 이름은 절대 쓰지 마라.
-        - 총 학점은 18을 넘지 않는다.
+        - 총 학점은 19을 넘지 않는다.
         - 동일한 요일, 교시가 겹치는 과목은 동시에 선택하지 않는다.
         - 학과/학년에 맞는 전공 과목만 포함하고, 남는 학점은 교양(교필/교선)으로 채워라.
         - “재수강”, “주 X일만 학교”, “1교시 피하기” 등의 요청은 반드시 반영하라.

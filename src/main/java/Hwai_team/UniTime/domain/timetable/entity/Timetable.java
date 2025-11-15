@@ -9,69 +9,43 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Entity
+@Table(name = "timetables")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-@Entity
-@Table(name = "timetables")
 public class Timetable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 🔹 이 시간표의 주인 (한 유저는 여러 시간표를 가질 수 있음)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_user_id", nullable = false)
+    @JoinColumn(name = "owner_user_id")
     private User owner;
 
-    // 🔹 시간표 제목
-    @Column(name = "title", nullable = false)
+    private Integer year;
+    private Integer semester;
     private String title;
 
-    // 🔹 학년도 / 학기
-    @Column(nullable = false)
-    private Integer year;
-
-    @Column(nullable = false)
-    private Integer semester;
-
-    // 🔹 생성 및 수정 시간
-    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    // 🔹 시간표 내 아이템 목록 (양방향 관계)
     @OneToMany(mappedBy = "timetable", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<TimetableItem> items = new ArrayList<>();
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = this.createdAt;
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // 🔹 편의 메서드
-    public void addItem(TimetableItem item) {
-        this.items.add(item);
-        item.setTimetable(this);
-    }
+    @Builder.Default                      // 🔥 중요
+    private List<TimetableItem> items = new ArrayList<>();   // 🔥 여기서 바로 초기화
 
     public void changeTitle(String title) {
         this.title = title;
     }
 
-    // 필요하면 전체 비우는 메서드도 하나 만들어두면 편함
-    public void clearItems() {
-        this.items.clear();
+    public void addItem(TimetableItem item) {
+        // 혹시 모를 방어 코드
+        if (this.items == null) {
+            this.items = new ArrayList<>();
+        }
+        this.items.add(item);
+        item.setTimetable(this);
     }
 }
