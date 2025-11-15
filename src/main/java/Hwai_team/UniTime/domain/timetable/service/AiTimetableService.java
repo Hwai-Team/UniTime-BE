@@ -137,7 +137,7 @@ public class AiTimetableService {
                     maxDays,
                     false,  // applyFirstPeriodFilter
                     false,  // forceAddRetake
-                    true,   // ignoreDayLimit: 전공은 요일 제한 완화
+                    false,   // ignoreDayLimit: 전공은 요일 제한 완화
                     remainingMajorSlots
             );
         }
