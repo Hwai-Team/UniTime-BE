@@ -1,4 +1,3 @@
-// src/main/java/Hwai_team/UniTime/domain/timetable/service/AiTimetableService.java
 package Hwai_team.UniTime.domain.timetable.service;
 
 import Hwai_team.UniTime.domain.course.entity.Course;
@@ -6,6 +5,7 @@ import Hwai_team.UniTime.domain.course.repository.CourseRepository;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableRequest;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableResponse;
 import Hwai_team.UniTime.domain.timetable.dto.AiTimetableSaveRequest;
+import Hwai_team.UniTime.domain.timetable.dto.TimetableSummaryResponse;
 import Hwai_team.UniTime.domain.timetable.entity.AiTimetable;
 import Hwai_team.UniTime.domain.timetable.entity.Timetable;
 import Hwai_team.UniTime.domain.timetable.entity.TimetableItem;
@@ -14,7 +14,6 @@ import Hwai_team.UniTime.domain.timetable.repository.TimetableItemRepository;
 import Hwai_team.UniTime.domain.timetable.repository.TimetableRepository;
 import Hwai_team.UniTime.domain.user.entity.User;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +31,6 @@ public class AiTimetableService {
     private static final int MAX_CREDITS = 18;
     private static final int MAX_MAJOR_COUNT = 5; // 전공 최대 개수
 
-    private final ObjectMapper objectMapper;
     private final AiTimetableRepository aiTimetableRepository;
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
@@ -40,8 +38,10 @@ public class AiTimetableService {
     private final TimetableItemRepository timetableItemRepository;
 
     /**
-     * DB 기반 생성:
+     * title: AI 시간표 생성 서비스
      * 재수강(우선) → 전공(최대 5개, 학년 정확 일치) → 교양(교필/교선)
+     * creator: 김민호
+     * @param: userId, message, year, semester
      */
     @Transactional
     public Timetable createByAi(AiTimetableRequest request) {
@@ -50,28 +50,25 @@ public class AiTimetableService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + request.getUserId()));
         final String userDept = normDept(user.getDepartment());
         final Integer userGrade = user.getGrade();
-        final String message = nullToEmpty(request.getMessage());
+
+        // 요약된 메세지(프롬프트) — FE/BE에서 이미 요약해서 넘어오는 값이라고 가정
+        final String summary = nullToEmpty(request.getMessage());
 
         // 2) 선호 파싱
-        final Integer maxDays = parseMaxDays(message).orElse(null);       // "주 3일" 등
-        final boolean avoidFirstPeriod = detectAvoidFirstPeriod(message); // 1교시 피하기 여부
+        final Integer maxDays = parseMaxDays(summary).orElse(null);       // "주 3일" 등
+        final boolean avoidFirstPeriod = detectAvoidFirstPeriod(summary); // 1교시 피하기 여부
 
         // 3) 전체 과목
         List<Course> all = courseRepository.findAll();
 
         // 4) 재수강 후보(메시지 내 이름/코드 포함) — 학년·학과 제한 없이 우선 포함
-        List<Course> retake = pickRetakeCourses(message, all);
+        List<Course> retake = pickRetakeCourses(summary, all);
 
-        // 5) 전공 후보 — 학과 완전 일치 + 추천학년 정확히 동일
         // 5) 전공 후보 — 학과 ‘완전 일치’ + 추천학년 == 유저 학년
         List<Course> major = all.stream()
                 .filter(this::isMajorCategory)  // 전공/전심/전선/전필 등
                 .filter(c -> deptStrictMatch(userDept, normDept(c.getDepartment()))) // 학과 완전 일치
-                .filter(c -> {
-                    Integer rec = c.getRecommendedGrade();
-                    // 🔥 추천학년이 없으면 버리고, 유저 학년이랑 정확히 같을 때만 통과
-                    return rec != null && userGrade != null && rec.equals(userGrade);
-                })
+                .filter(c -> isMajorRecommendedGradeMatch(userGrade, c))             // 추천 학년 정확 일치
                 .collect(Collectors.toList());
 
         // 6) 교양 후보(교필/교선)
@@ -88,7 +85,6 @@ public class AiTimetableService {
                 .items(new ArrayList<>()) // NPE 방지
                 .build();
         timetableRepository.save(timetable);
-
 
         int totalCredits = 0;
         Set<String> usedCourseCodes = new HashSet<>();
@@ -137,7 +133,7 @@ public class AiTimetableService {
                     maxDays,
                     false,  // applyFirstPeriodFilter
                     false,  // forceAddRetake
-                    false,   // ignoreDayLimit: 전공은 요일 제한 완화
+                    false,  // ignoreDayLimit: 전공은 요일 제한 완화 안 함
                     remainingMajorSlots
             );
         }
@@ -178,74 +174,19 @@ public class AiTimetableService {
         AiTimetable aiTimetable = aiTimetableRepository.findByUser_Id(user.getId())
                 .orElseGet(() -> AiTimetable.builder()
                         .user(user)
-                        .prompt(message)
                         .timetable(timetable)
                         .build()
                 );
+
+        // 요약된 메세지도 함께 저장 (summary -> prompt)
+        aiTimetable.setPrompt(summary);
+
+        // 시간표 결과 요약은 그대로 resultSummary에 저장
         aiTimetable.update(buildResultSummary(timetable), timetable);
         aiTimetableRepository.save(aiTimetable);
 
         return timetable;
     }
-    private boolean isMajorGradeMatch(Integer userGrade, Course c) {
-        if (userGrade == null) return true; // 학년 정보 없으면 필터 안 함
-
-        Integer gradeYear = c.getGradeYear();        // grade_year 컬럼
-        Integer rec = c.getRecommendedGrade();       // recommended_grade 컬럼
-
-        // 1순위: grade_year가 있으면 그걸로 정확 일치
-        if (gradeYear != null) {
-            return gradeYear.equals(userGrade);
-        }
-
-        // 2순위: grade_year는 없고 recommended_grade만 있으면 그걸로 정확 일치
-        if (rec != null) {
-            return rec.equals(userGrade);
-        }
-
-        // 둘 다 없으면 전공에서 제외 (너무 리스크 있으니까)
-        return false;
-    }
-
-    /** 수동 저장/수정 */
-    @Transactional
-    public AiTimetableResponse saveAiTimetable(AiTimetableSaveRequest request) {
-        if (request.getUserId() == null) throw new IllegalArgumentException("userId는 필수입니다.");
-        if (request.getTimetableId() == null) throw new IllegalArgumentException("timetableId는 필수입니다.");
-
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
-        Timetable timetable = timetableRepository.findById(request.getTimetableId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시간표입니다."));
-
-        AiTimetable aiTimetable = aiTimetableRepository.findByUser_Id(user.getId())
-                .orElseGet(() -> AiTimetable.builder()
-                        .user(user)
-                        .timetable(timetable)
-                        .build()
-                );
-
-        aiTimetable.update(request.getResultSummary(), timetable);
-        return AiTimetableResponse.from(aiTimetableRepository.save(aiTimetable));
-    }
-
-    /** AI 시간표 조회 */
-    @Transactional(readOnly = true)
-    public AiTimetableResponse getAiTimetable(Long userId) {
-        AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다."));
-        return AiTimetableResponse.from(entity);
-    }
-
-    /** AI 시간표 삭제 */
-    @Transactional
-    public void deleteAiTimetable(Long userId) {
-        aiTimetableRepository.deleteByUser_Id(userId);
-    }
-
-    // =======================
-    // 내부 유틸 / 헬퍼
-    // =======================
 
     /** 전공 과목 학년 매칭: recommended_grade가 유저 학년과 정확히 같은 과목만 허용 */
     private boolean isMajorRecommendedGradeMatch(Integer userGrade, Course c) {
@@ -259,6 +200,7 @@ public class AiTimetableService {
         // 추천학년이 유저 학년이랑 딱 맞는 것만 허용
         return rec.equals(userGrade);
     }
+
     /** 전공 카테고리 여부 */
     private boolean isMajorCategory(Course c) {
         String cat = nullToEmpty(c.getCategory());
@@ -288,12 +230,6 @@ public class AiTimetableService {
     private boolean deptStrictMatch(String userDept, String courseDept) {
         if (userDept.isEmpty() || courseDept.isEmpty()) return false;
         return userDept.equals(courseDept);
-    }
-
-    /** 추천학년 정확 일치만 허용 */
-    private boolean recGradeExactMatch(Integer userGrade, Integer rec) {
-        if (userGrade == null || rec == null) return false;
-        return rec.equals(userGrade);
     }
 
     private static String buildTitle(User user, AiTimetableRequest req) {
@@ -406,6 +342,71 @@ public class AiTimetableService {
     }
 
     // =======================
+    // 요약 조회 메서드
+    // =======================
+
+    /**
+     * userId 기준으로 AI 시간표 생성에 사용된 요약 메세지(prompt)를 반환한다.
+     * - AiTimetable.prompt 사용
+     */
+    @Transactional(readOnly = true)
+    public TimetableSummaryResponse getTimetableSummary(Long userId) {
+        AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다."));
+
+        String prompt = entity.getPrompt();
+        if (prompt == null) {
+            prompt = "";
+        }
+
+        return TimetableSummaryResponse.builder()
+                .userId(userId)
+                .summary(prompt)
+                .build();
+    }
+
+    // =======================
+    // AI 시간표 메타 저장/조회/삭제
+    // =======================
+
+    /** 수동 저장/수정 */
+    @Transactional
+    public AiTimetableResponse saveAiTimetable(AiTimetableSaveRequest request) {
+        if (request.getUserId() == null) throw new IllegalArgumentException("userId는 필수입니다.");
+        if (request.getTimetableId() == null) throw new IllegalArgumentException("timetableId는 필수입니다.");
+
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        Timetable timetable = timetableRepository.findById(request.getTimetableId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시간표입니다."));
+
+        AiTimetable aiTimetable = aiTimetableRepository.findByUser_Id(user.getId())
+                .orElseGet(() -> AiTimetable.builder()
+                        .user(user)
+                        .timetable(timetable)
+                        .build()
+                );
+
+        // 여기서는 resultSummary만 수정 (prompt는 그대로 유지)
+        aiTimetable.update(request.getResultSummary(), timetable);
+        return AiTimetableResponse.from(aiTimetableRepository.save(aiTimetable));
+    }
+
+    /** AI 시간표 조회 */
+    @Transactional(readOnly = true)
+    public AiTimetableResponse getAiTimetable(Long userId) {
+        AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다."));
+        return AiTimetableResponse.from(entity);
+    }
+
+    /** AI 시간표 삭제 */
+    @Transactional
+    public void deleteAiTimetable(Long userId) {
+        aiTimetableRepository.deleteByUser_Id(userId);
+    }
+
+    // =======================
     // 과목 추가 헬퍼
     // =======================
     private static class CourseAdder {
@@ -485,7 +486,7 @@ public class AiTimetableService {
             String code = nullToEmpty(c.getCourseCode());
             if (!code.isEmpty() && usedCodes.contains(code)) return false;
 
-            // 🔥 이름 기준 중복 검사 (공백/대소문자 무시)
+            // 이름 기준 중복 검사 (공백/대소문자 무시)
             String nameKey = normalize(c.getName());
             if (!nameKey.isEmpty() && usedNames.contains(nameKey)) {
                 return false;

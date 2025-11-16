@@ -34,27 +34,32 @@ public class AiTimetableController {
     // 1) AI 시간표 생성
     // =======================
     @Operation(
-            summary = "AI 시간표 생성 (Timetable + AiTimetable 자동 저장)",
+            summary = "AI 시간표 생성 (DB 기반 자동 추천)",
             description = """
-                사용자의 자연어 요청과 유저 정보(학과/학년)를 기반으로,
-                DB에 저장된 강의 목록(courses) 중에서 AI가 과목을 선택해 시간표를 자동 생성합니다.
-                
-                동작 요약:
-                - userId로 유저를 조회해 학과/학년 정보를 가져옵니다.
-                - 해당 학과/추천 학년에 맞는 강의들을 courses 테이블에서 조회합니다.
-                - 조회한 강의 목록 + 사용자의 요구사항(message)을 프롬프트에 넣어
-                  OpenAI로부터 JSON 형식의 시간표(TimetablePlan)를 응답받습니다.
-                - 응답에 포함된 courseCode를 기준으로 실제 Course 정보를 매핑하여
-                  Timetable / TimetableItem 엔티티를 생성·저장합니다.
-                - 동시에, 생성된 Timetable을 해당 유저의 AI 대표 시간표(AiTimetable)로 자동 저장/갱신합니다.
-                  (유저당 AiTimetable은 1개만 유지)
-                
-                예시 시나리오:
-                - "전자컴퓨터공학과 2학년 시간표 만들어줘.
-                   통학이 멀어서 주 3일만 학교 가고 싶고,
-                   1교시는 피했으면 좋겠어.
-                   Advanced Calculus2는 꼭 재수강해야 해."
-                """
+        사용자의 자연어 요청(message)과 유저 정보(학과/학년)를 기반으로
+        데이터베이스에 저장된 강의 목록(courses)에서 조건에 맞는 과목들을 자동으로 선정하여
+        시간표(Timetable)를 생성합니다.
+
+        🔍 주요 동작
+        - userId 를 이용해 유저 학과/학년 정보 조회
+        - message(요약 텍스트)를 분석하여 조건 파악:
+            · 재수강 과목 우선 포함
+            · "주 N일" 등교 제한
+            · "1교시 피하기" 여부
+        - courses 테이블에서 유저 학년과 정확히 일치하는 추천학년(recommended_grade)의 전공을 우선 배치
+        - 동일 강의 코드 / 동일 강의명 중복 자동 제거
+        - 요일 및 시간 중복 자동 방지
+        - 최종 생성된 시간표를 AI 대표 시간표(AiTimetable)로 자동 저장
+
+        💡 message 필드
+        - 이 값은 "챗봇과의 대화 내용"을 서버에서 요약해서 만든 한 줄짜리 조건 요약입니다.
+        - 일반적인 흐름 예시:
+          1) 채팅 화면에서 유저 대화를 백엔드에 저장
+          2) 요약용 API (예: POST /api/ai/summary/timetable) 를 호출해서
+             서버가 userId 기준으로 대화를 읽고, 시간표 조건을 요약한 문자열(summary)을 생성
+          3) 그 summary 문자열을 AiTimetableRequest.message 에 그대로 넣어서
+             POST /api/timetables/ai 를 호출해 시간표를 생성
+        """
             ,
             requestBody = @RequestBody(
                     required = true,
@@ -64,13 +69,13 @@ public class AiTimetableController {
                             examples = @ExampleObject(
                                     name = "AI 시간표 생성 예시",
                                     value = """
-                                            {
-                                              "userId": 1,
-                                              "message": "전자컴퓨터공학과 2학년 시간표 만들어줘. 통학이 멀어서 주 3일만 학교 가고 싶고 1교시는 피했으면 좋겠어. Advanced Calculus2는 꼭 재수강해야 해.",
-                                              "year": 2025,
-                                              "semester": 1
-                                            }
-                                            """
+                                    {
+                                      "userId": 1,
+                                      "message": "전자컴퓨터공학과 2학년, 주 3일 등교, 1교시 피하기, Advanced Calculus 2 재수강 필수",
+                                      "year": 2025,
+                                      "semester": 1
+                                    }
+                                    """
                             )
                     )
             )
@@ -78,42 +83,39 @@ public class AiTimetableController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "시간표 생성 성공 (Timetable / AiTimetable 모두 저장 완료)",
+                    description = "시간표 생성 성공",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = TimetableResponse.class),
                             examples = @ExampleObject(
                                     value = """
-                                            {
-                                              "id": 47,
-                                              "title": "2025-1학기 전자컴퓨터공학과 2학년 추천 시간표",
-                                              "year": 2025,
-                                              "semester": 1,
-                                              "items": [
-                                                {
-                                                  "courseName": "Advanced Calculus2",
-                                                  "dayOfWeek": "TUE",
-                                                  "startPeriod": 2,
-                                                  "endPeriod": 3,
-                                                  "room": "북-508",
-                                                  "category": "전필"
-                                                },
-                                                {
-                                                  "courseName": "자료구조",
-                                                  "dayOfWeek": "WED",
-                                                  "startPeriod": 3,
-                                                  "endPeriod": 4,
-                                                  "room": "공학관 101",
-                                                  "category": "전선"
-                                                }
-                                              ]
-                                            }
-                                            """
+                        {
+                          "id": 47,
+                          "title": "김민호의 2학년 전자컴퓨터공학과 시간표",
+                          "year": 2025,
+                          "semester": 1,
+                          "items": [
+                            {
+                              "id": 537,
+                              "courseId": 537,
+                              "courseName": "임베디드시스템",
+                              "credit": 3,
+                              "professor": "이광영",
+                              "dayOfWeek": "TUE",
+                              "startPeriod": 21,
+                              "endPeriod": 22,
+                              "room": "북-317",
+                              "category": "전심",
+                              "recommendedGrade": 2
+                            }
+                          ]
+                        }
+                        """
                             )
                     )
             ),
-            @ApiResponse(responseCode = "400", description = "유효하지 않은 요청 데이터"),
-            @ApiResponse(responseCode = "500", description = "AI 처리 또는 시간표 생성 중 오류 발생")
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
+            @ApiResponse(responseCode = "500", description = "시간표 생성 중 오류 발생")
     })
     @PostMapping
     public ResponseEntity<TimetableResponse> createByAi(

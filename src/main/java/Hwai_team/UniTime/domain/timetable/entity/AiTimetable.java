@@ -56,4 +56,10 @@ public class AiTimetable {
         this.resultSummary = resultSummary;
         this.timetable = timetable;
     }
+    public void setPrompt(String prompt) {
+        this.prompt = prompt;
+    }
+    public void setResultSummary(String resultSummary) {
+        this.resultSummary = resultSummary;
+    }
 }
