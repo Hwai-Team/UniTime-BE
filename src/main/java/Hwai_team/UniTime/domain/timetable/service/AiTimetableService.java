@@ -17,7 +17,6 @@ import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -28,8 +27,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiTimetableService {
 
-    private static final int MAX_CREDITS = 18;
-    private static final int MAX_MAJOR_COUNT = 5; // 전공 최대 개수
+    private static final int MAX_CREDITS = 19;                 // 시간표 최대 학점: 19
+    private static final int MAX_MAJOR_COUNT = 5;              // 시간표 짤때 최대 전공 수: 5
 
     private final AiTimetableRepository aiTimetableRepository;
     private final UserRepository userRepository;
@@ -38,10 +37,14 @@ public class AiTimetableService {
     private final TimetableItemRepository timetableItemRepository;
 
     /**
-     * title: AI 시간표 생성 서비스
-     * 재수강(우선) → 전공(최대 5개, 학년 정확 일치) → 교양(교필/교선)
-     * creator: 김민호
-     * @param: userId, message, year, semester
+     * <AI 시간표 생성 서비스>
+     *
+     * 유저 정보, 요약 프롬프트(메시지), 학년·학과 조건, 요일/교시 선호 등을 바탕으로
+     * 전공/교양/재수강 과목을 AI 방식으로 자동 배치하여 시간표를 생성한다.
+     *
+     * @author 김민호
+     * @param request userId, message(summary), year, semester
+     * @return Timetable 엔티티(id, title, year, semester, items 포함)
      */
     @Transactional
     public Timetable createByAi(AiTimetableRequest request) {
@@ -188,7 +191,14 @@ public class AiTimetableService {
         return timetable;
     }
 
-    /** 전공 과목 학년 매칭: recommended_grade가 유저 학년과 정확히 같은 과목만 허용 */
+    /**
+     * <사용자 학년에 맞는 강의 매칭 필터 서비스>
+     * 사용자의 학년에 맞는 강의를 고르는 필터 역활을 합니다
+     *
+     * @author 김민호
+     * @param userGrade, course
+     * @return boolean
+     */
     private boolean isMajorRecommendedGradeMatch(Integer userGrade, Course c) {
         if (userGrade == null) return true;  // 유저 학년 정보 없으면 필터 안 함
 
@@ -201,7 +211,14 @@ public class AiTimetableService {
         return rec.equals(userGrade);
     }
 
-    /** 전공 카테고리 여부 */
+    /**
+     * <사용자 전공에 맞는 강의 매칭 필터 서비스>
+     * 사용자 전공에 맞는 강의를 고르는 필터 역활을 합니다.
+     *
+     * @author 김민호
+     * @param course
+     * @return
+     */
     private boolean isMajorCategory(Course c) {
         String cat = nullToEmpty(c.getCategory());
         return cat.startsWith("전") || cat.contains("전공") || cat.equals("전필") || cat.equals("전선")
@@ -341,9 +358,6 @@ public class AiTimetableService {
                 && (m.contains("피") || m.contains("빼") || m.contains("안") || m.contains("없"));
     }
 
-    // =======================
-    // 요약 조회 메서드
-    // =======================
 
     /**
      * userId 기준으로 AI 시간표 생성에 사용된 요약 메세지(prompt)를 반환한다.

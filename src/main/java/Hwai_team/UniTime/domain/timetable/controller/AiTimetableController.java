@@ -30,9 +30,13 @@ public class AiTimetableController {
 
     private final AiTimetableService aiTimetableService;
 
-    // =======================
-    // 1) AI 시간표 생성
-    // =======================
+    /**
+     * Ai 시간표 생성 컨트롤러
+     *
+     * @author 김민호
+     * @param userId, message, year, semeseter
+     * @return id, title, year, semester, items
+     */
     @Operation(
             summary = "AI 시간표 생성 (DB 기반 자동 추천)",
             description = """
