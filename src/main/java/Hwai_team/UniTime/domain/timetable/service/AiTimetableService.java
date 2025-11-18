@@ -581,5 +581,41 @@ public class AiTimetableService {
             occupied.computeIfAbsent(day, k -> new ArrayList<>())
                     .add(new int[]{start, endExclusive});
         }
+        // AiTimetableService 맨 아래 쯤( CourseAdder 밖에 )
+        private void validateNoConflicts(Timetable timetable) {
+            List<TimetableItem> items = timetable.getItems();
+            if (items == null || items.isEmpty()) return;
+
+            Map<String, List<TimetableItem>> byDay = items.stream()
+                    .collect(Collectors.groupingBy(TimetableItem::getDayOfWeek));
+
+            for (String day : byDay.keySet()) {
+                List<TimetableItem> list = byDay.get(day);
+
+                // startPeriod 기준으로 정렬
+                list.sort(Comparator.comparing(i -> safeInt(i.getStartPeriod())));
+
+                for (int i = 0; i < list.size() - 1; i++) {
+                    TimetableItem a = list.get(i);
+                    TimetableItem b = list.get(i + 1);
+
+                    int aStart = safeInt(a.getStartPeriod());
+                    int aEnd   = safeInt(a.getEndPeriod());
+                    int bStart = safeInt(b.getStartPeriod());
+                    int bEnd   = safeInt(b.getEndPeriod());
+
+                    boolean overlap = (aStart <= bEnd) && (bStart <= aEnd);
+
+                    if (overlap) {
+                        throw new IllegalStateException(
+                                "시간표 충돌 발생: " +
+                                        nullToEmpty(a.getCourseName()) + " ↔ " +
+                                        nullToEmpty(b.getCourseName())
+                        );
+                    }
+                }
+            }
+        }
+
     }
 }

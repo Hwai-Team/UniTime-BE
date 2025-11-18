@@ -46,32 +46,35 @@ public class ChatService {
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + request.getUserId()));
 
-        // 🔹 굳이 conversationId 쓸 거면 이렇게 "유저 기반 가짜 id"만 만들어서
-        //    응답에만 내려주고, DB에는 저장 안 함.
-        String conversationId = "USER-" + user.getId();
+        String userMessage = request.getMessage();
 
-        // 시스템 프롬프트
-        String reply = openAiClient.askChat(
-                PromptTemplates.CHAT_SYSTEM_PROMPT,
-                request.getMessage()
-        );
-
-        // === 여기서 "시간표 만들 의도" 감지 + 플랜 추출 ===
-        boolean timetableIntent = isTimetableIntent(request.getMessage());
+        // 🔥 시간표 의도 감지
+        boolean timetableIntent = isTimetableIntent(userMessage);
         TimetablePlanDto plan = null;
+        String reply;
+
         if (timetableIntent) {
-            plan = extractTimetablePlan(request.getMessage());
+            // 🔥 시간표 조건(학점/요일 등) 추출
+            plan = extractTimetablePlan(userMessage);
+
+            // 🔥 왼쪽 채팅은 이제 과목 상세를 말하면 안 됨 → 고정 멘트
+            reply = "요청해 준 조건으로 시간표를 생성해볼게!\n오른쪽 시간표 영역에서 확인해줘.";
+        } else {
+            // 일반 대화는 기존처럼 GPT 응답 사용
+            reply = openAiClient.askChat(
+                    PromptTemplates.CHAT_SYSTEM_PROMPT,
+                    userMessage
+            );
         }
 
-        // DB에 유저 메시지 저장 (❌ conversationId 제거)
+        // 메시지 저장
         ChatMessage userMsg = ChatMessage.builder()
                 .user(user)
                 .role("USER")
-                .content(request.getMessage())
+                .content(userMessage)
                 .build();
         chatMessageRepository.save(userMsg);
 
-        // DB에 GPT 답변 저장 (❌ conversationId 제거)
         ChatMessage botMsg = ChatMessage.builder()
                 .user(user)
                 .role("ASSISTANT")
@@ -79,7 +82,6 @@ public class ChatService {
                 .build();
         chatMessageRepository.save(botMsg);
 
-        // 응답 반환 (프론트는 conversationId 안 써도 됨, 써도 그냥 이 가짜 값)
         return ChatResponse.builder()
                 .reply(reply)
                 .timetablePlan(timetableIntent)
