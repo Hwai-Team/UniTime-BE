@@ -64,13 +64,5 @@ public class TimetableAiIntentService {
                 timetableContextMsg
         );
     }
-    public interface TimetableItemRepository extends JpaRepository<TimetableItem, Long> {
 
-        boolean existsByTimetableAndDayOfWeekAndStartPeriodLessThanEqualAndEndPeriodGreaterThanEqual(
-                Timetable timetable,
-                String dayOfWeek,
-                Integer endPeriod,
-                Integer startPeriod
-        );
-    }
 }
