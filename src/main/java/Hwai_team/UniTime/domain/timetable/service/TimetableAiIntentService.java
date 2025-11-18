@@ -4,7 +4,10 @@ import Hwai_team.UniTime.domain.chat.entity.ChatMessage;
 import Hwai_team.UniTime.domain.chat.repository.ChatMessageRepository;
 import Hwai_team.UniTime.domain.timetable.dto.AiGenerateButtonRequest;
 import Hwai_team.UniTime.domain.timetable.dto.AiGenerateButtonResponse;
+import Hwai_team.UniTime.domain.timetable.entity.Timetable;
+import Hwai_team.UniTime.domain.timetable.entity.TimetableItem;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -59,6 +62,15 @@ public class TimetableAiIntentService {
                 "키워드 매칭 성공",
                 suggestion,
                 timetableContextMsg
+        );
+    }
+    public interface TimetableItemRepository extends JpaRepository<TimetableItem, Long> {
+
+        boolean existsByTimetableAndDayOfWeekAndStartPeriodLessThanEqualAndEndPeriodGreaterThanEqual(
+                Timetable timetable,
+                String dayOfWeek,
+                Integer endPeriod,
+                Integer startPeriod
         );
     }
 }
