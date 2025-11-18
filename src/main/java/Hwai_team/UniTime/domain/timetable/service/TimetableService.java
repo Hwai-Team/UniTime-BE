@@ -88,9 +88,6 @@ public class TimetableService {
             timetable.changeTitle(request.getTitle());
         }
 
-        // 전체 갈아끼우기
-        timetableItemRepository.deleteByTimetable_Id(timetableId);
-        timetable.getItems().clear();
 
         if (request.getItems() != null) {
             for (TimetableUpdateRequest.Item it : request.getItems()) {

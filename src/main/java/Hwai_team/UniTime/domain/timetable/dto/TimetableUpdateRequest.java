@@ -15,6 +15,7 @@ public class TimetableUpdateRequest {
 
     @Data
     public static class Item {
+        private Long itemId;
         private Long courseId;          // 필수
         private String dayOfWeek;       // 선택: 보내면 코스값 대신 이 값 사용
         private Integer startPeriod;    // 선택

@@ -44,7 +44,7 @@ public class AiTimetableService {
      *
      * @author 김민호
      * @param request userId, message(summary), year, semester
-     * @return Timetable 엔티티(id, title, year, semester, items 포함)
+     * @return Timetable Entity(id, title, year, semester, items 포함)
      */
     @Transactional
     public Timetable createByAi(AiTimetableRequest request) {
@@ -115,7 +115,7 @@ public class AiTimetableService {
                 MAX_CREDITS,
                 maxDays,
                 false,  // applyFirstPeriodFilter
-                true,   // forceAddRetake
+                false,   // forceAddRetake
                 true    // ignoreDayLimit
         );
 
@@ -406,7 +406,14 @@ public class AiTimetableService {
         return AiTimetableResponse.from(aiTimetableRepository.save(aiTimetable));
     }
 
-    /** AI 시간표 조회 */
+    /**
+     * <Ai 시간표 조회 서비스>
+     * AI가 만든 시간표를 조회하는 기능을 합니다.
+     *
+     * @author 김민호
+     * @param userId
+     * @return AiTimetableResponse
+     */
     @Transactional(readOnly = true)
     public AiTimetableResponse getAiTimetable(Long userId) {
         AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
@@ -414,7 +421,14 @@ public class AiTimetableService {
         return AiTimetableResponse.from(entity);
     }
 
-    /** AI 시간표 삭제 */
+    /**
+     * <AI 시간표 삭제 서비스>
+     * AI가 만든 시간표를 삭제하는 기능합니다
+     *
+     * @author 김민호
+     * @param
+     * @return
+     */
     @Transactional
     public void deleteAiTimetable(Long userId) {
         aiTimetableRepository.deleteByUser_Id(userId);
@@ -494,17 +508,14 @@ public class AiTimetableService {
                                int maxCredits,
                                Integer maxDays,
                                boolean applyFirstPeriodFilter,
-                               boolean forceAddRetake,
+                               boolean forceAddRetake,   // 이 파라미터 사실상 의미 사라짐
                                boolean ignoreDayLimit) {
 
             String code = nullToEmpty(c.getCourseCode());
             if (!code.isEmpty() && usedCodes.contains(code)) return false;
 
-            // 이름 기준 중복 검사 (공백/대소문자 무시)
             String nameKey = normalize(c.getName());
-            if (!nameKey.isEmpty() && usedNames.contains(nameKey)) {
-                return false;
-            }
+            if (!nameKey.isEmpty() && usedNames.contains(nameKey)) return false;
 
             String day = nullToEmpty(c.getDayOfWeek());
             int start = safeInt(c.getStartPeriod());
@@ -517,8 +528,9 @@ public class AiTimetableService {
                 if (newDay && (usedDays.size() + 1) > maxDays) return false;
             }
 
+            // ❌ 겹치면 무조건 추가 금지
             boolean conflict = isConflict(day, start, endExclusive);
-            if (conflict && !forceAddRetake) return false;
+            if (conflict) return false;
 
             int after = currentCredits + safeInt(c.getCredit());
             if (after > maxCredits) return false;
