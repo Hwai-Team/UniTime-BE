@@ -157,7 +157,7 @@ public class AiTimetableService {
         );
 
         // 7-4) 교양 2차: 아직 18학점 미만이면 요일 제한만 풀어서 한 번 더 시도
-        if (totalCredits < MAX_CREDITS) {
+        if (totalCredits < MAX_CREDITS && maxDays == null) {
             List<Course> liberalSecond = liberal.stream()
                     .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
                     .collect(Collectors.toList());
