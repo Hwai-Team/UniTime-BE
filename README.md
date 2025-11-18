@@ -1,8 +1,8 @@
 ## 👨‍💻 Developers
 
-| <img src="https://avatars.githubusercontent.com/u/197270758?v=4" width=100> | <img src="https://avatars.githubusercontent.com/u/227333566?v=4" width=100>
-| :------------------------------------------------------------------------: | :-------------------------------------------------------------------------: |
-|                   [김민호](https://github.com/minho0805)                   |                  [민경빈](https://github.com/03-MKB)                   |        
+| <img src="https://avatars.githubusercontent.com/u/197270758?v=4" width=100> 
+| :------------------------------------------------------------------------: | 
+|                   [김민호](https://github.com/minho0805)                   |         
 
 <br>
 
