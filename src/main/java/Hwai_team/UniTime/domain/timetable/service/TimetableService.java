@@ -107,20 +107,8 @@ public class TimetableService {
                                     "DB(course) 값 또는 요청(dayOfWeek/startPeriod/endPeriod) 중 하나는 채워져야 합니다."
                     );
                 }
-                boolean conflict = timetableItemRepository
-                        .existsByTimetableAndDayOfWeekAndStartPeriodLessThanEqualAndEndPeriodGreaterThanEqual(
-                                timetable,
-                                dayOfWeek,
-                                end,    // new.end <= existing.end ?
-                                start   // new.start >= existing.start ?
-                        );
 
-                if (conflict) {
-                    throw new IllegalStateException(
-                            "이미 같은 시간에 다른 과목이 있어서 추가할 수 없습니다. (" +
-                                    dayOfWeek + " " + start + "–" + end + "교시)"
-                    );
-                }
+
 
                 TimetableItem item = TimetableItem.builder()
                         .timetable(timetable)

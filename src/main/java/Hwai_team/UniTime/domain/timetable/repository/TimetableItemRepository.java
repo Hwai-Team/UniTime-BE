@@ -9,10 +9,4 @@ public interface TimetableItemRepository extends JpaRepository<TimetableItem, Lo
 
     void deleteByTimetable_Id(Long timetableId);
 
-    boolean existsByTimetableAndDayOfWeekAndStartPeriodLessThanEqualAndEndPeriodGreaterThanEqual(
-            Timetable timetable,
-            String dayOfWeek,
-            Integer endPeriod,
-            Integer startPeriod
-    );
 }

@@ -30,4 +30,3 @@ logging:
 openai:               # 배포시 이걸로
   api-key: ${OPENAI_API_KEY}
 
-
