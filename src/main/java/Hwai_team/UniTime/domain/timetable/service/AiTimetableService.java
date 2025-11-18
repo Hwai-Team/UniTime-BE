@@ -437,13 +437,16 @@ public class AiTimetableService {
     // =======================
     // 과목 추가 헬퍼
     // =======================
+    // =======================
+    // 과목 추가 헬퍼
+    // =======================
     private static class CourseAdder {
         private final Timetable timetable;
         private final TimetableItemRepository repo;
         private final Set<String> usedCodes;
-        private final Map<String, List<int[]>> occupied; // day -> [start,end)
+        // dayOfWeek -> [startMin, endMin) 리스트
+        private final Map<String, List<int[]>> occupied;
         private final Set<String> usedDays;
-
         // 과목 이름(정규화) 중복 체크용
         private final Set<String> usedNames;
 
@@ -508,7 +511,7 @@ public class AiTimetableService {
                                int maxCredits,
                                Integer maxDays,
                                boolean applyFirstPeriodFilter,
-                               boolean forceAddRetake,   // 이 파라미터 사실상 의미 사라짐
+                               boolean forceAddRetake,   // 지금은 의미 없음
                                boolean ignoreDayLimit) {
 
             String code = nullToEmpty(c.getCourseCode());
@@ -518,20 +521,28 @@ public class AiTimetableService {
             if (!nameKey.isEmpty() && usedNames.contains(nameKey)) return false;
 
             String day = nullToEmpty(c.getDayOfWeek());
-            int start = safeInt(c.getStartPeriod());
-            int endExclusive = safeInt(c.getEndPeriod()) + 1;
+            Integer startP = c.getStartPeriod();
+            Integer endP   = c.getEndPeriod();
+            if (day.isEmpty() || startP == null || endP == null) {
+                return false;
+            }
 
-            if (applyFirstPeriodFilter && start == 1) return false;
+            if (applyFirstPeriodFilter && startP == 1) return false;
 
+            // 🔥 교시 -> 분 단위 변환
+            int startMin = periodStartMinutes(startP);
+            int endMin   = periodEndMinutes(endP);
+
+            // 요일 제한
             if (!ignoreDayLimit && maxDays != null) {
                 boolean newDay = !usedDays.contains(day);
                 if (newDay && (usedDays.size() + 1) > maxDays) return false;
             }
 
-            // ❌ 겹치면 무조건 추가 금지
-            boolean conflict = isConflict(day, start, endExclusive);
-            if (conflict) return false;
+            // 🔥 분 단위 시간 겹침 체크
+            if (isConflict(day, startMin, endMin)) return false;
 
+            // 학점 초과 방지
             int after = currentCredits + safeInt(c.getCredit());
             if (after > maxCredits) return false;
 
@@ -550,6 +561,7 @@ public class AiTimetableService {
                     .category(c.getCategory())
                     .build();
             repo.save(item);
+            // Timetable 쪽에서도 한 번 더(분 단위) 겹침 체크
             timetable.addItem(item);
 
             String code = nullToEmpty(c.getCourseCode());
@@ -558,64 +570,88 @@ public class AiTimetableService {
             String nameKey = normalize(c.getName());
             if (!nameKey.isEmpty()) usedNames.add(nameKey);
 
-            occupy(nullToEmpty(c.getDayOfWeek()),
-                    safeInt(c.getStartPeriod()),
-                    safeInt(c.getEndPeriod()) + 1);
+            // 🔥 분 단위로 occupy
+            int startMin = periodStartMinutes(c.getStartPeriod());
+            int endMin   = periodEndMinutes(c.getEndPeriod());
+            occupy(nullToEmpty(c.getDayOfWeek()), startMin, endMin);
 
             return currentCredits + safeInt(c.getCredit());
         }
 
-        private boolean isConflict(String day, int start, int endExclusive) {
+        private boolean isConflict(String day, int startMin, int endMin) {
             if (day.isEmpty()) return false;
             List<int[]> list = occupied.getOrDefault(day, new ArrayList<>());
             for (int[] r : list) {
                 int as = r[0], ae = r[1];
-                if (start < ae && as < endExclusive) return true; // overlap
+                // [as, ae) 와 [startMin, endMin) 이 1분이라도 겹치면 true
+                if (startMin < ae && as < endMin) return true;
             }
             return false;
         }
 
-        private void occupy(String day, int start, int endExclusive) {
+        private void occupy(String day, int startMin, int endMin) {
             if (day.isEmpty()) return;
             usedDays.add(day);
             occupied.computeIfAbsent(day, k -> new ArrayList<>())
-                    .add(new int[]{start, endExclusive});
+                    .add(new int[]{startMin, endMin});
         }
-        // AiTimetableService 맨 아래 쯤( CourseAdder 밖에 )
-        private void validateNoConflicts(Timetable timetable) {
-            List<TimetableItem> items = timetable.getItems();
-            if (items == null || items.isEmpty()) return;
+    }
 
-            Map<String, List<TimetableItem>> byDay = items.stream()
-                    .collect(Collectors.groupingBy(TimetableItem::getDayOfWeek));
+    // ===== 교시 번호 → 분 단위 변환 =====
+    private static int periodStartMinutes(int period) {
+        switch (period) {
+            case 1:  return 9 * 60;
+            case 2:  return 10 * 60;
+            case 3:  return 11 * 60;
+            case 4:  return 12 * 60;
+            case 5:  return 13 * 60;
+            case 6:  return 14 * 60;
+            case 7:  return 15 * 60;
+            case 8:  return 16 * 60;
+            case 9:  return 17 * 60;
 
-            for (String day : byDay.keySet()) {
-                List<TimetableItem> list = byDay.get(day);
-
-                // startPeriod 기준으로 정렬
-                list.sort(Comparator.comparing(i -> safeInt(i.getStartPeriod())));
-
-                for (int i = 0; i < list.size() - 1; i++) {
-                    TimetableItem a = list.get(i);
-                    TimetableItem b = list.get(i + 1);
-
-                    int aStart = safeInt(a.getStartPeriod());
-                    int aEnd   = safeInt(a.getEndPeriod());
-                    int bStart = safeInt(b.getStartPeriod());
-                    int bEnd   = safeInt(b.getEndPeriod());
-
-                    boolean overlap = (aStart <= bEnd) && (bStart <= aEnd);
-
-                    if (overlap) {
-                        throw new IllegalStateException(
-                                "시간표 충돌 발생: " +
-                                        nullToEmpty(a.getCourseName()) + " ↔ " +
-                                        nullToEmpty(b.getCourseName())
-                        );
-                    }
-                }
-            }
+            case 21: return 9 * 60;
+            case 22: return 10 * 60 + 30;
+            case 23: return 12 * 60;
+            case 24: return 13 * 60 + 30;
+            case 25: return 15 * 60;
+            case 26: return 16 * 60 + 30;
+            default:
+                throw new IllegalArgumentException("알 수 없는 교시: " + period);
         }
+    }
 
+    private static int periodEndMinutes(int period) {
+        switch (period) {
+            case 1:  return 9 * 60 + 50;
+            case 2:  return 10 * 60 + 50;
+            case 3:  return 11 * 60 + 50;
+            case 4:  return 12 * 60 + 50;
+            case 5:  return 13 * 60 + 50;
+            case 6:  return 14 * 60 + 50;
+            case 7:  return 15 * 60 + 50;
+            case 8:  return 16 * 60 + 50;
+            case 9:  return 17 * 60 + 50;
+
+            case 21: return 10 * 60 + 15;
+            case 22: return 11 * 60 + 45;
+            case 23: return 13 * 60 + 15;
+            case 24: return 14 * 60 + 45;
+            case 25: return 16 * 60 + 15;
+            case 26: return 17 * 60 + 45;
+            default:
+                throw new IllegalArgumentException("알 수 없는 교시: " + period);
+        }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
