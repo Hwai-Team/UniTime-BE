@@ -34,6 +34,7 @@ public class TimetableService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다. id=" + userId));
 
+        request.setUserId(userId);
         // 여기서는 AiTimetableRequest.userId가 컨트롤러에서 세팅되어 있다고 가정
         Timetable timetable = aiTimetableService.createByAi(request);
 
