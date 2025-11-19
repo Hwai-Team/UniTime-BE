@@ -8,8 +8,8 @@ import java.util.List;
 public class PromptTemplates {
 
     /**
-     * ✅ 일반 채팅 / 시간표 / 공부 계획 / 서비스 안내용 시스템 프롬프트
-     *  - 여기에는 "졸업요건 규칙" 절대 넣지 않는다.
+     * ✅ 일반 채팅 / 공부 계획 / 서비스 안내용 시스템 프롬프트
+     *  - 시간표 생성, 졸업요건은 별도 프롬프트 사용
      */
     public static final String CHAT_SYSTEM_PROMPT = """
         너는 UniTime 서비스 안에서 동작하는 대학생 전용 챗봇이야.
@@ -26,7 +26,6 @@ public class PromptTemplates {
 
     /**
      * 🎓 졸업요건 안내 전용 시스템 프롬프트
-     *  - 졸업요건 관련 API 쓸 때만 이걸 system 메시지로 넣으면 된다.
      */
     public static final String GRAD_SYSTEM_PROMPT = """
         너는 UniTime 서비스 안에서 동작하는 "졸업요건 안내 전용" 챗봇이야.
@@ -69,7 +68,52 @@ public class PromptTemplates {
         """;
 
     // =======================
+    // ✅ 시간표 요약 전용 프롬프트
+    //  - /api/ai/summary/timetable 같은 곳에서 사용
+    //  - 이 AI의 출력이 AiTimetableRequest.message 로 들어간다고 가정
+    // =======================
+    public static final String TIMETABLE_SUMMARY_SYSTEM_PROMPT = """
+        너는 UniTime 서비스 안에서 동작하는 "시간표 조건 요약 전용" AI야.
+
+        입력으로는 사용자가 시간표에 대해 한 자연어 요청(여러 문장)이 들어온다.
+        너의 역할은 "AI 시간표 생성 엔진이 이해하기 쉬운 형식"으로
+        학생의 요구사항만 뽑아서 정리하는 것이다.
+
+        ⚠️ 중요 규칙:
+        - 예시 시간표(월요일 몇 교시, 수요일 몇 교시 등)를 새로 만들어 쓰지 마라.
+        - "월요일 2교시에는 ~" 같은 구체적인 시간표는 절대 적지 마라.
+        - 사용자가 말한 조건(주 3일, 재수강, 피하고 싶은 요일/교시 등)은
+          절대 삭제하지 말고 그대로 유지해라.
+        - 등교 일수는 되도록 "주 X일" 또는 "일주일에 X번" 형태로 써라.
+        - 불필요한 설명 문장은 쓰지 말고, 아래 형식만 유지해라.
+
+        [출력 형식] → 반드시 이 형식 그대로, bullet 5줄만 출력해라.
+
+        - 등교 일수: 주 X일 / 일주일에 X번 / 없음
+        - 선호 요일: 월/화/수/목/금 중 원하는 요일들 또는 없음
+        - 1교시 피하기: 예 / 아니오
+        - 재수강 과목: 과목명1, 과목명2,... 또는 없음
+        - 기타 요청: 위 항목에 안 들어가는 나머지 요구사항을 간단히 서술
+        """;
+
+    /**
+     * 시간표 요약 프롬프트에 들어갈 user 메시지 빌더 (선택사항)
+     * - 대화 원문(text)를 그대로 넣어도 되고, 필요하면 유저 정보도 같이 붙일 수 있음
+     */
+    public static String buildTimetableSummaryPrompt(User user, String rawText) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("학생 정보:\n");
+        sb.append("- 이름: ").append(user.getName()).append("\n");
+        sb.append("- 학과: ").append(user.getDepartment()).append("\n");
+        sb.append("- 학년: ").append(user.getGrade()).append("\n\n");
+        sb.append("학생이 말한 시간표 관련 요구사항은 다음과 같다:\n");
+        sb.append(rawText);
+        return sb.toString();
+    }
+
+    // =======================
     // 시간표 생성용 프롬프트
+    //  - 여기서 userMessage 는 위 요약 AI의 출력 문자열이라고 가정
     // =======================
     public static String buildTimetablePrompt(User user, List<Course> courses, String userMessage) {
         StringBuilder sb = new StringBuilder();
@@ -86,7 +130,7 @@ public class PromptTemplates {
         sb.append("이름: ").append(user.getName()).append("\n");
         sb.append("학과: ").append(user.getDepartment()).append("\n");
         sb.append("학년: ").append(user.getGrade()).append("\n");
-        sb.append("요청 내용: ").append(userMessage).append("\n\n");
+        sb.append("요청 요약: ").append(userMessage).append("\n\n");
 
         // 2️⃣ 과목 목록 JSON 배열로 변환
         sb.append("[\n");
