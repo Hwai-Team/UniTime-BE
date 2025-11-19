@@ -17,6 +17,7 @@ import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -108,15 +109,16 @@ public class AiTimetableService {
         major.sort(byStartPeriodWithAvoid(false));
         liberal.sort(byStartPeriodWithAvoid(avoidFirstPeriod));
 
-        // 7-1) 재수강: 충돌/요일제한 무시하고 우선 포함(학점만 체크)
+        // 7-1) 재수강: 충돌만 체크하고 우선 포함 (요일 제한은 maxDays 없을 때만 무시)
+        boolean ignoreDayLimitForRetake = (maxDays == null);
         totalCredits = adder.addCourses(
                 retake,
                 totalCredits,
                 MAX_CREDITS,
                 maxDays,
                 false,  // applyFirstPeriodFilter
-                false,   // forceAddRetake
-                true    // ignoreDayLimit
+                false,  // forceAddRetake
+                ignoreDayLimitForRetake
         );
 
         // 현재까지 들어간 전공 개수(재수강에 전공 포함 가능)
@@ -156,7 +158,7 @@ public class AiTimetableService {
                 false
         );
 
-        // 7-4) 교양 2차: 아직 18학점 미만이면 요일 제한만 풀어서 한 번 더 시도
+        // 7-4) 교양 2차: 아직 19학점 미만이고, maxDays 없을 때만 요일 제한 풀어서 시도
         if (totalCredits < MAX_CREDITS && maxDays == null) {
             List<Course> liberalSecond = liberal.stream()
                     .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
@@ -341,14 +343,46 @@ public class AiTimetableService {
         return i == null ? 0 : i;
     }
 
+    // "주 3일", "주 3회", "일주일에 3번", "3일만 학교" 등 여러 표현을 커버
     private static Optional<Integer> parseMaxDays(String msg) {
-        Matcher m = Pattern.compile("주\\s*(\\d)\\s*일").matcher(nullToEmpty(msg));
-        if (m.find()) {
+        String text = nullToEmpty(msg);
+
+        // 1) "주 3일"
+        Matcher m1 = Pattern.compile("주\\s*(\\d)\\s*일").matcher(text);
+        if (m1.find()) {
             try {
-                return Optional.of(Integer.parseInt(m.group(1)));
+                return Optional.of(Integer.parseInt(m1.group(1)));
             } catch (NumberFormatException ignored) {
             }
         }
+
+        // 2) "주 3회", "주 3번"
+        Matcher m2 = Pattern.compile("주\\s*(\\d)\\s*(회|번)").matcher(text);
+        if (m2.find()) {
+            try {
+                return Optional.of(Integer.parseInt(m2.group(1)));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        // 3) "일주일에 3번", "일주일에 3일"
+        Matcher m3 = Pattern.compile("일주일에\\s*(\\d)\\s*(번|일|회)").matcher(text);
+        if (m3.find()) {
+            try {
+                return Optional.of(Integer.parseInt(m3.group(1)));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        // 4) "3일만 학교", "3번만 학교"
+        Matcher m4 = Pattern.compile("(\\d)\\s*(일|번|회)만\\s*학교").matcher(text);
+        if (m4.find()) {
+            try {
+                return Optional.of(Integer.parseInt(m4.group(1)));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
         return Optional.empty();
     }
 
@@ -357,7 +391,6 @@ public class AiTimetableService {
         return (m.contains("1교시") || m.contains("첫교시"))
                 && (m.contains("피") || m.contains("빼") || m.contains("안") || m.contains("없"));
     }
-
 
     /**
      * userId 기준으로 AI 시간표 생성에 사용된 요약 메세지(prompt)를 반환한다.
@@ -434,9 +467,6 @@ public class AiTimetableService {
         aiTimetableRepository.deleteByUser_Id(userId);
     }
 
-    // =======================
-    // 과목 추가 헬퍼
-    // =======================
     // =======================
     // 과목 추가 헬퍼
     // =======================
@@ -644,14 +674,3 @@ public class AiTimetableService {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
