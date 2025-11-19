@@ -55,11 +55,11 @@ public class AiTimetableService {
         final String userDept = normDept(user.getDepartment());
         final Integer userGrade = user.getGrade();
 
-        // 요약된 메세지(프롬프트) — FE/BE에서 이미 요약해서 넘어오는 값이라고 가정
+        // 요약된 메세지(프롬프트)
         final String summary = nullToEmpty(request.getMessage());
 
         // 2) 선호 파싱
-        final Integer maxDays = parseMaxDays(summary).orElse(null);       // "주 3일" 등
+        final Integer maxDays = parseMaxDays(summary).orElse(null);       // "주 3일", "일주일에 3번" 등
         final boolean avoidFirstPeriod = detectAvoidFirstPeriod(summary); // 1교시 피하기 여부
 
         // 3) 전체 과목
@@ -109,22 +109,22 @@ public class AiTimetableService {
         major.sort(byStartPeriodWithAvoid(false));
         liberal.sort(byStartPeriodWithAvoid(avoidFirstPeriod));
 
-        // 7-1) 재수강: 충돌만 체크하고 우선 포함 (요일 제한은 maxDays 없을 때만 무시)
-        boolean ignoreDayLimitForRetake = (maxDays == null);
+        // 7-1) 재수강: 충돌/요일제한/학점 모두 지키면서 우선 포함
+        // → 전공/교양과 같은 usedDays를 공유하므로 "전체 3일" 조건을 같이 맞춘다.
         totalCredits = adder.addCourses(
                 retake,
                 totalCredits,
                 MAX_CREDITS,
                 maxDays,
                 false,  // applyFirstPeriodFilter
-                false,  // forceAddRetake
-                ignoreDayLimitForRetake
+                false,  // forceAddRetake (지금은 사용 안함)
+                false   // ignoreDayLimit: 재수강도 요일 제한 지킴
         );
 
         // 현재까지 들어간 전공 개수(재수강에 전공 포함 가능)
         int majorCountSoFar = countMajorsInTimetable(timetable);
 
-        // 7-2) 전공: 최대 5개까지만 추가
+        // 7-2) 전공: 최대 5개까지만 추가 (전역 usedDays 기준)
         int remainingMajorSlots = Math.max(0, MAX_MAJOR_COUNT - majorCountSoFar);
         if (remainingMajorSlots > 0) {
             List<Course> majorFiltered = major.stream()
@@ -138,12 +138,12 @@ public class AiTimetableService {
                     maxDays,
                     false,  // applyFirstPeriodFilter
                     false,  // forceAddRetake
-                    false,  // ignoreDayLimit: 전공은 요일 제한 완화 안 함
+                    false,  // ignoreDayLimit: 전공도 요일 제한 지킴
                     remainingMajorSlots
             );
         }
 
-        // 7-3) 교양 1차: 요일제한/1교시회피 반영
+        // 7-3) 교양 1차: 요일제한/1교시회피 반영 (전역 usedDays 기준)
         List<Course> liberalFiltered = liberal.stream()
                 .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
                 .collect(Collectors.toList());
@@ -158,7 +158,7 @@ public class AiTimetableService {
                 false
         );
 
-        // 7-4) 교양 2차: 아직 19학점 미만이고, maxDays 없을 때만 요일 제한 풀어서 시도
+        // 7-4) 교양 2차: 아직 19학점 미만이고, "주 X일" 제한이 없을 때만 요일 제한 풀어서 시도
         if (totalCredits < MAX_CREDITS && maxDays == null) {
             List<Course> liberalSecond = liberal.stream()
                     .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
@@ -168,10 +168,10 @@ public class AiTimetableService {
                     liberalSecond,
                     totalCredits,
                     MAX_CREDITS,
-                    maxDays,
+                    null,          // maxDays 없음
                     avoidFirstPeriod, // 1교시 회피는 유지
                     false,
-                    true              // ignoreDayLimit
+                    true           // ignoreDayLimit: 요일 제한이 애초에 없을 때만 새 요일 열어도 됨
             );
         }
 
@@ -195,11 +195,7 @@ public class AiTimetableService {
 
     /**
      * <사용자 학년에 맞는 강의 매칭 필터 서비스>
-     * 사용자의 학년에 맞는 강의를 고르는 필터 역활을 합니다
-     *
-     * @author 김민호
-     * @param userGrade, course
-     * @return boolean
+     * 사용자의 학년에 맞는 강의를 고르는 필터 역할
      */
     private boolean isMajorRecommendedGradeMatch(Integer userGrade, Course c) {
         if (userGrade == null) return true;  // 유저 학년 정보 없으면 필터 안 함
@@ -215,11 +211,7 @@ public class AiTimetableService {
 
     /**
      * <사용자 전공에 맞는 강의 매칭 필터 서비스>
-     * 사용자 전공에 맞는 강의를 고르는 필터 역활을 합니다.
-     *
-     * @author 김민호
-     * @param course
-     * @return
+     * 사용자 전공에 맞는 강의를 고르는 필터 역할
      */
     private boolean isMajorCategory(Course c) {
         String cat = nullToEmpty(c.getCategory());
@@ -459,8 +451,6 @@ public class AiTimetableService {
      * AI가 만든 시간표를 삭제하는 기능합니다
      *
      * @author 김민호
-     * @param
-     * @return
      */
     @Transactional
     public void deleteAiTimetable(Long userId) {
@@ -559,17 +549,17 @@ public class AiTimetableService {
 
             if (applyFirstPeriodFilter && startP == 1) return false;
 
-            // 🔥 교시 -> 분 단위 변환
+            // 교시 -> 분 단위 변환
             int startMin = periodStartMinutes(startP);
             int endMin   = periodEndMinutes(endP);
 
-            // 요일 제한
+            // 요일 제한 (전공/교양/재수강 전부 같은 usedDays 기준)
             if (!ignoreDayLimit && maxDays != null) {
                 boolean newDay = !usedDays.contains(day);
                 if (newDay && (usedDays.size() + 1) > maxDays) return false;
             }
 
-            // 🔥 분 단위 시간 겹침 체크
+            // 분 단위 시간 겹침 체크
             if (isConflict(day, startMin, endMin)) return false;
 
             // 학점 초과 방지
@@ -591,6 +581,7 @@ public class AiTimetableService {
                     .category(c.getCategory())
                     .build();
             repo.save(item);
+
             // Timetable 쪽에서도 한 번 더(분 단위) 겹침 체크
             timetable.addItem(item);
 
@@ -600,7 +591,7 @@ public class AiTimetableService {
             String nameKey = normalize(c.getName());
             if (!nameKey.isEmpty()) usedNames.add(nameKey);
 
-            // 🔥 분 단위로 occupy
+            // 분 단위로 occupy
             int startMin = periodStartMinutes(c.getStartPeriod());
             int endMin   = periodEndMinutes(c.getEndPeriod());
             occupy(nullToEmpty(c.getDayOfWeek()), startMin, endMin);
