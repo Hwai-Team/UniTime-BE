@@ -1,3 +1,4 @@
+// src/main/java/Hwai_team/UniTime/global/ai/PromptTemplates.java
 package Hwai_team.UniTime.global.ai;
 
 import Hwai_team.UniTime.domain.course.entity.Course;
@@ -67,6 +68,21 @@ public class PromptTemplates {
           라는 취지의 문장을 한 줄로 덧붙여.
         """;
 
+    /**
+     * ✅ 사용자 질문을 보고 어느 시스템 프롬프트를 쓸 지 결정
+     *  - ChatService 등에서 이 메서드를 호출해서 system 프롬프트로 사용하면 됨
+     */
+    public static String resolveChatSystemPrompt(String userMessage) {
+        String msg = userMessage == null ? "" : userMessage.replaceAll("\\s+", "");
+
+        boolean isGradQuestion =
+                (msg.contains("졸업") && (msg.contains("요건") || msg.contains("조건")))
+                        || msg.matches(".*\\d{2}학번.*졸업.*")
+                        || msg.toLowerCase().contains("graduation requirement");
+
+        return isGradQuestion ? GRAD_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
+    }
+
     // =======================
     // ✅ 시간표 요약 전용 프롬프트
     //  - /api/ai/summary/timetable 같은 곳에서 사용
@@ -97,8 +113,7 @@ public class PromptTemplates {
         """;
 
     /**
-     * 시간표 요약 프롬프트에 들어갈 user 메시지 빌더 (선택사항)
-     * - 대화 원문(text)를 그대로 넣어도 되고, 필요하면 유저 정보도 같이 붙일 수 있음
+     * 시간표 요약 프롬프트에 들어갈 user 메시지 빌더
      */
     public static String buildTimetableSummaryPrompt(User user, String rawText) {
         StringBuilder sb = new StringBuilder();
