@@ -424,20 +424,30 @@ public class AiTimetableService {
      * userId 기준으로 AI 시간표 생성에 사용된 요약 메세지(prompt)를 반환한다.
      * - AiTimetable.prompt 사용
      */
+    // AiTimetableService.java
+
     @Transactional(readOnly = true)
     public TimetableSummaryResponse getTimetableSummary(Long userId) {
-        AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다."));
+        // 🔥 예전: 없으면 예외 던져서 500 터졌음
+        // AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
+        //         .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다."));
 
-        String prompt = entity.getPrompt();
-        if (prompt == null) {
-            prompt = "";
-        }
-
-        return TimetableSummaryResponse.builder()
-                .userId(userId)
-                .summary(prompt)
-                .build();
+        return aiTimetableRepository.findByUser_Id(userId)
+                .map(entity -> {
+                    String prompt = entity.getPrompt();
+                    if (prompt == null) prompt = "";
+                    return TimetableSummaryResponse.builder()
+                            .userId(userId)
+                            .summary(prompt)
+                            .build();
+                })
+                .orElseGet(() ->
+                        // 🔥 아직 AI 시간표/요약이 한 번도 없으면: 빈 요약으로 200 리턴
+                        TimetableSummaryResponse.builder()
+                                .userId(userId)
+                                .summary("")
+                                .build()
+                );
     }
 
     // =======================
