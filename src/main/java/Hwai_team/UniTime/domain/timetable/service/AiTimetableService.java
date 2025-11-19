@@ -55,7 +55,7 @@ public class AiTimetableService {
         final String userDept = normDept(user.getDepartment());
         final Integer userGrade = user.getGrade();
 
-        // 요약된 메세지(프롬프트)
+        // 사용자의 메세지를 요약해서 넘겨줍니다.
         final String summary = nullToEmpty(request.getMessage());
 
         // 2) 선호 파싱
@@ -225,7 +225,12 @@ public class AiTimetableService {
         return cat.equals("교필") || cat.equals("교선");
     }
 
-    /** timetable 내 전공 아이템 개수 */
+    /** <시간표 내 강의가 몇개인지 측정하는 함수>
+     *
+     * @Author 김민호
+     * @Param
+     * @Return
+     */
     private int countMajorsInTimetable(Timetable t) {
         if (t.getItems() == null) return 0;
         int cnt = 0;
@@ -291,7 +296,13 @@ public class AiTimetableService {
         };
     }
 
-    /** 재수강 후보 탐색: 메시지에 이름/코드가 등장하면 픽업 */
+    /** <사용자의 재수가 강의 검색 함수>
+     *
+     * 사용자가 원하는 재수강 강의를 검색합니다.
+     * @Author 김민호
+     * @Param
+     * @Return
+     */
     private static List<Course> pickRetakeCourses(String message, List<Course> all) {
         String msg = normalize(message);
         boolean cue = msg.contains("재수강") || msg.contains("재수")

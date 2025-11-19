@@ -35,6 +35,7 @@ public class TimetableService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다. id=" + userId));
 
+        // 여기서는 AiTimetableRequest.userId가 컨트롤러에서 세팅되어 있다고 가정
         Timetable timetable = aiTimetableService.createByAi(request);
 
         AiTimetableResponse response = new AiTimetableResponse();
@@ -84,12 +85,22 @@ public class TimetableService {
         Timetable timetable = timetableRepository.findById(timetableId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 시간표입니다. id=" + timetableId));
 
+        // 제목 변경
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             timetable.changeTitle(request.getTitle());
         }
 
-
+        // 아이템 전체 교체 모드
         if (request.getItems() != null) {
+            // 1) 기존 아이템 DB에서 삭제
+            timetableItemRepository.deleteByTimetable_Id(timetableId);
+
+            // 2) 엔티티 내부 컬렉션도 정리 (양방향 일관성 유지)
+            if (timetable.getItems() != null) {
+                timetable.getItems().clear();
+            }
+
+            // 3) 요청 아이템으로 새로 구성
             for (TimetableUpdateRequest.Item it : request.getItems()) {
                 Course course = courseRepository.findById(it.getCourseId())
                         .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 과목입니다. id=" + it.getCourseId()));
@@ -100,7 +111,7 @@ public class TimetableService {
                 Integer end        = (it.getEndPeriod()   != null) ? it.getEndPeriod()   : course.getEndPeriod();
                 String room        = (it.getRoom()        != null) ? it.getRoom()        : course.getRoom();
 
-                // 필수 컬럼 검증(테이블이 NOT NULL이면 여기서 잡아줌)
+                // 필수 컬럼 검증
                 if (dayOfWeek == null || start == null || end == null) {
                     throw new IllegalArgumentException(
                             "과목(" + course.getName() + ")의 시간정보가 부족합니다. " +
@@ -108,10 +119,9 @@ public class TimetableService {
                     );
                 }
 
-
-
                 TimetableItem item = TimetableItem.builder()
                         .timetable(timetable)
+                        .course(course)                 // 가능하면 course도 세팅
                         .courseName(course.getName())
                         .category(course.getCategory())
                         .dayOfWeek(dayOfWeek)
@@ -120,6 +130,8 @@ public class TimetableService {
                         .room(room)
                         .build();
 
+                // AI 시간표에서와 동일한 패턴: 직접 저장 + timetable.addItem
+                timetableItemRepository.save(item);
                 timetable.addItem(item);
             }
         }
