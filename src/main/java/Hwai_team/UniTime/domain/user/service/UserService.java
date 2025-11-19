@@ -23,10 +23,12 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider;
 
     /**
-     * 회원가입을 수행하고 액세스/리프레시 토큰과 사용자 정보를 반환한다.
+     * <회원가입 서비스>
+     * 회원가입 기능을 합니다
      *
-     * @param request 회원가입 요청 정보(이메일, 비밀번호, 이름, 학번, 학과, 학년, 졸업년도)
-     * @return accessToken, refreshToken, 사용자 정보가 담긴 AuthResponse
+     * @Author 김민호
+     * @param SignupRequest
+     * @return accessToken, refreshToken, UserResponse
      * @throws IllegalArgumentException 이미 가입된 이메일일 경우 발생
      */
     public AuthResponse signup(SignupRequest request) {
@@ -106,13 +108,13 @@ public class UserService {
     }
 
     /**
-     * 사용자의 프로필 정보를 부분 수정한다.
-     * 요청 값 중 null이 아닌 필드만 업데이트된다.
+     * <유저 프로필 수정 서비스>
+     * 사용자의 프로필을 수정한다.
      *
-     * @param userId 수정할 사용자 ID
-     * @param request 프로필 수정 요청 정보(이름, 학번, 학과, 학년, 졸업년도 중 변경할 값)
-     * @return 수정된 사용자 정보를 담은 UserProfileResponse
-     * @throws IllegalArgumentException 존재하지 않는 사용자 ID일 경우 발생
+     * @Author 김민호
+     * @param userId, UserProfileUpdateRequest
+     * @return UserProfileResponse
+     * @throws IllegalArgumentException -> userId가 존재 하지 않을때
      */
     @Transactional
     public UserProfileResponse updateMyProfile(Long userId, UserProfileUpdateRequest request) {
@@ -140,16 +142,19 @@ public class UserService {
     }
 
     /**
-     * 사용자 프로필 정보를 조회한다.
+     * <유저 프로필 조회 서비스>
      *
-     * @param userId 조회할 사용자 ID
-     * @return 해당 사용자의 프로필 정보를 담은 UserProfileResponse
-     * @throws IllegalArgumentException 사용자 ID가 존재하지 않을 경우 발생
+     * 사용자의 프로필을 조회 합니다.
+     *
+     * @Author 김민호
+     * @param userId
+     * @return  UserProfileResponse
+     * @throws IllegalArgumentException -> userId가 존재 하지 않을때
      */
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다. id=" + userId));  // error
 
         return UserProfileResponse.builder()
                 .userId(user.getId())

@@ -471,15 +471,17 @@ public class AiTimetableService {
     // =======================
     // 과목 추가 헬퍼
     // =======================
+    // =======================
+// 과목 추가 헬퍼
+// =======================
     private static class CourseAdder {
         private final Timetable timetable;
         private final TimetableItemRepository repo;
         private final Set<String> usedCodes;
-        // dayOfWeek -> [startMin, endMin) 리스트
+        // dayOfWeek -> [startPeriod, endPeriodExclusive) 리스트
         private final Map<String, List<int[]>> occupied;
         private final Set<String> usedDays;
-        // 과목 이름(정규화) 중복 체크용
-        private final Set<String> usedNames;
+        private final Set<String> usedNames; // 과목 이름(정규화) 중복 체크용
 
         private CourseAdder(Timetable timetable,
                             TimetableItemRepository repo,
@@ -514,7 +516,6 @@ public class AiTimetableService {
             return currentCredits;
         }
 
-        /** 최대 N개까지만 추가(전공 제한용) */
         int addCoursesUpTo(List<Course> candidates,
                            int currentCredits,
                            int maxCredits,
@@ -542,7 +543,7 @@ public class AiTimetableService {
                                int maxCredits,
                                Integer maxDays,
                                boolean applyFirstPeriodFilter,
-                               boolean forceAddRetake,   // 지금은 의미 없음
+                               boolean forceAddRetake,
                                boolean ignoreDayLimit) {
 
             String code = nullToEmpty(c.getCourseCode());
@@ -560,20 +561,19 @@ public class AiTimetableService {
 
             if (applyFirstPeriodFilter && startP == 1) return false;
 
-            // 교시 -> 분 단위 변환
-            int startMin = periodStartMinutes(startP);
-            int endMin   = periodEndMinutes(endP);
+            // ✅ 예전 방식: 교시 번호 기반 [start, endExclusive) 구간
+            int start = safeInt(startP);
+            int endExclusive = safeInt(endP) + 1;
 
-            // 요일 제한 (전공/교양/재수강 전부 같은 usedDays 기준)
+            // 요일 제한
             if (!ignoreDayLimit && maxDays != null) {
                 boolean newDay = !usedDays.contains(day);
                 if (newDay && (usedDays.size() + 1) > maxDays) return false;
             }
 
-            // 분 단위 시간 겹침 체크
-            if (isConflict(day, startMin, endMin)) return false;
+            // ✅ 예전 방식: 교시 구간만으로 겹침 체크
+            if (isConflict(day, start, endExclusive)) return false;
 
-            // 학점 초과 방지
             int after = currentCredits + safeInt(c.getCredit());
             if (after > maxCredits) return false;
 
@@ -592,8 +592,6 @@ public class AiTimetableService {
                     .category(c.getCategory())
                     .build();
             repo.save(item);
-
-            // Timetable 쪽에서도 한 번 더(분 단위) 겹침 체크
             timetable.addItem(item);
 
             String code = nullToEmpty(c.getCourseCode());
@@ -602,30 +600,31 @@ public class AiTimetableService {
             String nameKey = normalize(c.getName());
             if (!nameKey.isEmpty()) usedNames.add(nameKey);
 
-            // 분 단위로 occupy
-            int startMin = periodStartMinutes(c.getStartPeriod());
-            int endMin   = periodEndMinutes(c.getEndPeriod());
-            occupy(nullToEmpty(c.getDayOfWeek()), startMin, endMin);
+            // ✅ 예전 방식: 교시 구간으로 occupy
+            occupy(
+                    nullToEmpty(c.getDayOfWeek()),
+                    safeInt(c.getStartPeriod()),
+                    safeInt(c.getEndPeriod()) + 1
+            );
 
             return currentCredits + safeInt(c.getCredit());
         }
 
-        private boolean isConflict(String day, int startMin, int endMin) {
+        private boolean isConflict(String day, int start, int endExclusive) {
             if (day.isEmpty()) return false;
             List<int[]> list = occupied.getOrDefault(day, new ArrayList<>());
             for (int[] r : list) {
                 int as = r[0], ae = r[1];
-                // [as, ae) 와 [startMin, endMin) 이 1분이라도 겹치면 true
-                if (startMin < ae && as < endMin) return true;
+                if (start < ae && as < endExclusive) return true;
             }
             return false;
         }
 
-        private void occupy(String day, int startMin, int endMin) {
+        private void occupy(String day, int start, int endExclusive) {
             if (day.isEmpty()) return;
             usedDays.add(day);
             occupied.computeIfAbsent(day, k -> new ArrayList<>())
-                    .add(new int[]{startMin, endMin});
+                    .add(new int[]{start, endExclusive});
         }
     }
 
