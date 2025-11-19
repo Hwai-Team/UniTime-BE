@@ -37,19 +37,19 @@ public class TimetableService {
      */
     @Transactional
     public TimetableResponse generateAiTimetable(AiTimetableRequest request) {
+
         Long userId = request.getUserId();
         if (userId == null) {
             throw new IllegalArgumentException("userId는 필수입니다.");
         }
 
-        // 유저 존재 여부 검증 (이름은 여기서 쓰지는 않지만, 유효성 체크용)
-        userRepository.findById(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다. id=" + userId));
 
-        // 실제 AI 시간표 생성
+        // AI 시간표 실제 생성 (여기서 AiTimetable 엔티티까지 같이 관리)
         Timetable timetable = aiTimetableService.createByAi(request);
 
-        // Timetable → TimetableResponse 변환해서 반환
+        // 프론트가 원하는 건 '방금 만들어진 시간표 내용'
         return TimetableResponse.from(timetable);
     }
 
