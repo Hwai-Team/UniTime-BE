@@ -594,8 +594,13 @@ public class AiTimetableService {
                     .room(c.getRoom())
                     .category(c.getCategory())
                     .build();
-            repo.save(item);
-            timetable.addItem(item);
+            try {
+                repo.save(item);
+                timetable.addItem(item);
+            } catch (IllegalStateException e) {
+                // 충돌났으면 rollback 없이 그냥 통과
+                return currentCredits;
+            }
 
             String code = nullToEmpty(c.getCourseCode());
             if (!code.isEmpty()) usedCodes.add(code);
