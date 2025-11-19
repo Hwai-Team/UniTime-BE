@@ -55,7 +55,7 @@ public class AiTimetableService {
         final String userDept = normDept(user.getDepartment());
         final Integer userGrade = user.getGrade();
 
-        // 사용자의 메세지를 요약해서 넘겨줍니다.
+        // 요약된 메세지(프롬프트)
         final String summary = nullToEmpty(request.getMessage());
 
         // 2) 선호 파싱
@@ -110,7 +110,6 @@ public class AiTimetableService {
         liberal.sort(byStartPeriodWithAvoid(avoidFirstPeriod));
 
         // 7-1) 재수강: 충돌/요일제한/학점 모두 지키면서 우선 포함
-        // → 전공/교양과 같은 usedDays를 공유하므로 "전체 3일" 조건을 같이 맞춘다.
         totalCredits = adder.addCourses(
                 retake,
                 totalCredits,
@@ -124,7 +123,7 @@ public class AiTimetableService {
         // 현재까지 들어간 전공 개수(재수강에 전공 포함 가능)
         int majorCountSoFar = countMajorsInTimetable(timetable);
 
-        // 7-2) 전공: 최대 5개까지만 추가 (전역 usedDays 기준)
+        // 7-2) 전공: 최대 5개까지만 추가
         int remainingMajorSlots = Math.max(0, MAX_MAJOR_COUNT - majorCountSoFar);
         if (remainingMajorSlots > 0) {
             List<Course> majorFiltered = major.stream()
@@ -143,7 +142,7 @@ public class AiTimetableService {
             );
         }
 
-        // 7-3) 교양 1차: 요일제한/1교시회피 반영 (전역 usedDays 기준)
+        // 7-3) 교양 1차: 요일제한/1교시회피 반영
         List<Course> liberalFiltered = liberal.stream()
                 .filter(c -> !usedCourseCodes.contains(nullToEmpty(c.getCourseCode())))
                 .collect(Collectors.toList());
@@ -168,10 +167,10 @@ public class AiTimetableService {
                     liberalSecond,
                     totalCredits,
                     MAX_CREDITS,
-                    null,          // maxDays 없음
+                    null,             // maxDays 없음
                     avoidFirstPeriod, // 1교시 회피는 유지
                     false,
-                    true           // ignoreDayLimit: 요일 제한이 애초에 없을 때만 새 요일 열어도 됨
+                    true              // ignoreDayLimit
             );
         }
 
@@ -225,12 +224,7 @@ public class AiTimetableService {
         return cat.equals("교필") || cat.equals("교선");
     }
 
-    /** <시간표 내 강의가 몇개인지 측정하는 함수>
-     *
-     * @Author 김민호
-     * @Param
-     * @Return
-     */
+    /** 시간표 내 전공 아이템 개수 */
     private int countMajorsInTimetable(Timetable t) {
         if (t.getItems() == null) return 0;
         int cnt = 0;
@@ -263,25 +257,62 @@ public class AiTimetableService {
         ).trim();
     }
 
+    /** 결과 요약: 전공/교양/학점 + 사용 요일/주 몇 일 */
     private static String buildResultSummary(Timetable timetable) {
-        int credits = timetable.getItems() == null ? 0 :
-                timetable.getItems().stream()
-                        .mapToInt(i -> i.getCourse() != null ? i.getCourse().getCredit() : 0)
-                        .sum();
-        long majorCnt = timetable.getItems() == null ? 0 :
-                timetable.getItems().stream().filter(i -> {
-                    String cat = nullToEmpty(i.getCategory());
-                    return cat.startsWith("전") || cat.contains("전공") || cat.equals("전필") || cat.equals("전선")
-                            || cat.equalsIgnoreCase("major");
-                }).count();
-        long liberalCnt = timetable.getItems() == null ? 0 :
-                timetable.getItems().stream().filter(i -> {
-                    String cat = nullToEmpty(i.getCategory());
-                    return cat.equals("교필") || cat.equals("교선");
-                }).count();
+        if (timetable.getItems() == null || timetable.getItems().isEmpty()) {
+            return "전공 0개(최대 " + MAX_MAJOR_COUNT + "), 교양 0개, 총 0학점, 주 0일";
+        }
 
-        return String.format("전공 %d개(최대 %d), 교양 %d개, 총 %d학점",
-                majorCnt, MAX_MAJOR_COUNT, liberalCnt, credits);
+        int credits = timetable.getItems().stream()
+                .mapToInt(i -> i.getCourse() != null ? i.getCourse().getCredit() : 0)
+                .sum();
+
+        long majorCnt = timetable.getItems().stream().filter(i -> {
+            String cat = nullToEmpty(i.getCategory());
+            return cat.startsWith("전") || cat.contains("전공") || cat.equals("전필") || cat.equals("전선")
+                    || cat.equalsIgnoreCase("major");
+        }).count();
+
+        long liberalCnt = timetable.getItems().stream().filter(i -> {
+            String cat = nullToEmpty(i.getCategory());
+            return cat.equals("교필") || cat.equals("교선");
+        }).count();
+
+        // 사용된 요일 수집
+        Set<String> daySet = new HashSet<>();
+        for (TimetableItem it : timetable.getItems()) {
+            daySet.add(nullToEmpty(it.getDayOfWeek()));
+        }
+
+        int dayCount = (int) daySet.stream()
+                .filter(d -> !d.isBlank())
+                .count();
+
+        List<String> orderedDays = Arrays.asList("MON", "TUE", "WED", "THU", "FRI", "SAT");
+        List<String> usedDaysKorean = orderedDays.stream()
+                .filter(daySet::contains)
+                .map(AiTimetableService::toKoreanDay)
+                .collect(Collectors.toList());
+
+        String dayPart = usedDaysKorean.isEmpty()
+                ? "주 0일"
+                : "주 " + dayCount + "일 (" + String.join(", ", usedDaysKorean) + ")";
+
+        return String.format("전공 %d개(최대 %d), 교양 %d개, 총 %d학점, %s",
+                majorCnt, MAX_MAJOR_COUNT, liberalCnt, credits, dayPart);
+    }
+
+    private static String toKoreanDay(String day) {
+        switch (day) {
+            case "MON": return "월";
+            case "TUE": return "화";
+            case "WED": return "수";
+            case "THU": return "목";
+            case "FRI": return "금";
+            case "SAT": return "토";
+            case "SUN": return "일";
+            default:    return day;
+        }
     }
 
     private static Comparator<Course> byStartPeriodWithAvoid(boolean avoidFirstPeriod) {
@@ -296,13 +327,7 @@ public class AiTimetableService {
         };
     }
 
-    /** <사용자의 재수가 강의 검색 함수>
-     *
-     * 사용자가 원하는 재수강 강의를 검색합니다.
-     * @Author 김민호
-     * @Param
-     * @Return
-     */
+    /** 재수강 후보 탐색: 메시지에 이름/코드가 등장하면 픽업 */
     private static List<Course> pickRetakeCourses(String message, List<Course> all) {
         String msg = normalize(message);
         boolean cue = msg.contains("재수강") || msg.contains("재수")
@@ -444,11 +469,7 @@ public class AiTimetableService {
 
     /**
      * <Ai 시간표 조회 서비스>
-     * AI가 만든 시간표를 조회하는 기능을 합니다.
-     *
-     * @author 김민호
-     * @param userId
-     * @return AiTimetableResponse
+     * AI가 만든 시간표를 조회하는 기능
      */
     @Transactional(readOnly = true)
     public AiTimetableResponse getAiTimetable(Long userId) {
@@ -459,9 +480,7 @@ public class AiTimetableService {
 
     /**
      * <AI 시간표 삭제 서비스>
-     * AI가 만든 시간표를 삭제하는 기능합니다
-     *
-     * @author 김민호
+     * AI가 만든 시간표를 삭제
      */
     @Transactional
     public void deleteAiTimetable(Long userId) {
@@ -471,9 +490,6 @@ public class AiTimetableService {
     // =======================
     // 과목 추가 헬퍼
     // =======================
-    // =======================
-// 과목 추가 헬퍼
-// =======================
     private static class CourseAdder {
         private final Timetable timetable;
         private final TimetableItemRepository repo;
@@ -561,7 +577,6 @@ public class AiTimetableService {
 
             if (applyFirstPeriodFilter && startP == 1) return false;
 
-            // ✅ 예전 방식: 교시 번호 기반 [start, endExclusive) 구간
             int start = safeInt(startP);
             int endExclusive = safeInt(endP) + 1;
 
@@ -571,7 +586,7 @@ public class AiTimetableService {
                 if (newDay && (usedDays.size() + 1) > maxDays) return false;
             }
 
-            // ✅ 예전 방식: 교시 구간만으로 겹침 체크
+            // 교시 구간만으로 겹침 체크
             if (isConflict(day, start, endExclusive)) return false;
 
             int after = currentCredits + safeInt(c.getCredit());
@@ -600,7 +615,6 @@ public class AiTimetableService {
             String nameKey = normalize(c.getName());
             if (!nameKey.isEmpty()) usedNames.add(nameKey);
 
-            // ✅ 예전 방식: 교시 구간으로 occupy
             occupy(
                     nullToEmpty(c.getDayOfWeek()),
                     safeInt(c.getStartPeriod()),
@@ -628,7 +642,7 @@ public class AiTimetableService {
         }
     }
 
-    // ===== 교시 번호 → 분 단위 변환 =====
+    // ===== 교시 번호 → 분 단위 변환 (현재는 안 쓰지만 혹시 몰라 보존) =====
     private static int periodStartMinutes(int period) {
         switch (period) {
             case 1:  return 9 * 60;
