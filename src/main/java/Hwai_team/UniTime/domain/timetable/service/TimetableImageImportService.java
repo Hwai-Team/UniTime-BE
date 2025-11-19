@@ -44,22 +44,55 @@ public class TimetableImageImportService {
             String systemPrompt = """
                     너는 대학 시간표 이미지(에브리타임 캡쳐)를 분석하는 도우미야.
                     이미지에 있는 각 강의에 대해 아래 필드를 뽑아서 JSON 배열로만 답해.
+
                     필드:
                       - courseName: 강의명 (string)
                       - courseCode: 학수번호가 보이면 적고, 없으면 null
                       - dayOfWeek: MON/TUE/WED/THU/FRI/SAT 중 하나
-                      - startPeriod: 시작 교시 (정수, 1~25 같은 형태)
-                      - endPeriod: 끝 교시 (정수)
+                      - startPeriod: 시작 교시 번호 (정수)
+                      - endPeriod: 끝 교시 번호 (정수)
                       - room: 강의실 텍스트 전체 (없으면 null)
 
-                    반드시 JSON 배열만 반환해. 예:
+                    ⚠️ 교시 번호는 "시간대"에 따라 다음 규칙을 반드시 따라야 한다.
+                    시간표의 실제 시작/종료 시간을 보고, 거기에 맞는 교시 번호를 골라라.
+
+                    [일반 교시(50분짜리)]
+                    - 1교시:  09:00 ~ 09:50  → startPeriod=1,  endPeriod=1
+                    - 2교시:  10:00 ~ 10:50 → startPeriod=2,  endPeriod=2
+                    - 3교시:  11:00 ~ 11:50 → startPeriod=3,  endPeriod=3
+                    - 4교시:  12:00 ~ 12:50 → startPeriod=4,  endPeriod=4
+                    - 5교시:  13:00 ~ 13:50 → startPeriod=5,  endPeriod=5
+                    - 6교시:  14:00 ~ 14:50 → startPeriod=6,  endPeriod=6
+                    - 7교시:  15:00 ~ 15:50 → startPeriod=7,  endPeriod=7
+                    - 8교시:  16:00 ~ 16:50 → startPeriod=8,  endPeriod=8
+                    - 9교시:  17:00 ~ 17:50 → startPeriod=9,  endPeriod=9
+
+                    [블록 교시(1시간 15분짜리)]
+                    - 21교시: 09:00 ~ 10:15 → startPeriod=21, endPeriod=21
+                    - 22교시: 10:30 ~ 11:45 → startPeriod=22, endPeriod=22
+                    - 23교시: 12:00 ~ 13:15 → startPeriod=23, endPeriod=23
+                    - 24교시: 13:30 ~ 14:45 → startPeriod=24, endPeriod=24
+                    - 25교시: 15:00 ~ 16:15 → startPeriod=25, endPeriod=25
+                    - 26교시: 16:30 ~ 17:45 → startPeriod=26, endPeriod=26
+
+                    규칙:
+                    - 이미지에 시간이 09:00~10:15로 보이면, 이건 반드시 21교시로 간주하고 startPeriod=21, endPeriod=21 로 적어라.
+                    - 이미지에 시간이 09:00~09:50로 보이면, 이건 1교시로 간주하고 startPeriod=1, endPeriod=1 로 적어라.
+                    - 시간이 텍스트로만 "1교시", "2교시"라고 적혀 있어도,
+                      가능하면 위의 시간표(09:00, 10:00, ...) 기준으로 교시 번호를 맞춰라.
+                    - 2개 이상의 연속 교시(예: 1~2교시)로 보이면, 시작은 1, 끝은 2 같은 식으로 적어라.
+                      (블록 교시도 마찬가지로 21~22 등으로 필요 시 확장 가능하지만,
+                       기본적으로 하나의 블록(21, 22, ...)은 startPeriod=endPeriod 로 맞춰라.)
+
+                    반드시 JSON 배열만 반환해.
+                    예:
                     [
                       {
                         "courseName": "운영체제",
                         "courseCode": "CS301",
                         "dayOfWeek": "MON",
                         "startPeriod": 21,
-                        "endPeriod": 22,
+                        "endPeriod": 21,
                         "room": "IT-401"
                       }
                     ]
