@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiTimetableService {
 
-    private static final int MAX_CREDITS = 19;                 // 시간표 최대 학점: 19
-    private static final int MAX_MAJOR_COUNT = 5;              // 시간표 짤때 최대 전공 수: 5
+    private static final int MAX_CREDITS = 19;   // 시간표 최대 학점
+    private static final int MAX_MAJOR_COUNT = 5; // 최대 전공 수
 
     private final AiTimetableRepository aiTimetableRepository;
     private final UserRepository userRepository;
@@ -41,11 +41,7 @@ public class AiTimetableService {
      * <AI 시간표 생성 서비스>
      *
      * 유저 정보, 요약 프롬프트(메시지), 학년·학과 조건, 요일/교시 선호 등을 바탕으로
-     * 전공/교양/재수강 과목을 AI 방식으로 자동 배치하여 시간표를 생성한다.
-     *
-     * @author 김민호
-     * @param request userId, message(summary), year, semester
-     * @return Timetable Entity(id, title, year, semester, items 포함)
+     * 전공/교양/재수강 과목을 자동 배치하여 시간표를 생성.
      */
     @Transactional
     public Timetable createByAi(AiTimetableRequest request) {
@@ -105,7 +101,7 @@ public class AiTimetableService {
                 usedCourseNames
         );
 
-        // 정렬: 전공은 그냥 시간 빠른 순, 교양은 1교시 회피 옵션 반영
+        // 정렬: 전공은 시간 빠른 순, 교양은 1교시 회피 옵션 반영
         major.sort(byStartPeriodWithAvoid(false));
         liberal.sort(byStartPeriodWithAvoid(avoidFirstPeriod));
 
@@ -116,7 +112,7 @@ public class AiTimetableService {
                 MAX_CREDITS,
                 maxDays,
                 false,  // applyFirstPeriodFilter
-                false,  // forceAddRetake (지금은 사용 안함)
+                false,  // forceAddRetake (현재 사용 안 함)
                 false   // ignoreDayLimit: 재수강도 요일 제한 지킴
         );
 
@@ -192,10 +188,7 @@ public class AiTimetableService {
         return timetable;
     }
 
-    /**
-     * <사용자 학년에 맞는 강의 매칭 필터 서비스>
-     * 사용자의 학년에 맞는 강의를 고르는 필터 역할
-     */
+    /** 사용자 학년에 맞는 강의 매칭 필터 */
     private boolean isMajorRecommendedGradeMatch(Integer userGrade, Course c) {
         if (userGrade == null) return true;  // 유저 학년 정보 없으면 필터 안 함
 
@@ -208,10 +201,7 @@ public class AiTimetableService {
         return rec.equals(userGrade);
     }
 
-    /**
-     * <사용자 전공에 맞는 강의 매칭 필터 서비스>
-     * 사용자 전공에 맞는 강의를 고르는 필터 역할
-     */
+    /** 전공 카테고리 여부 */
     private boolean isMajorCategory(Course c) {
         String cat = nullToEmpty(c.getCategory());
         return cat.startsWith("전") || cat.contains("전공") || cat.equals("전필") || cat.equals("전선")
@@ -421,17 +411,12 @@ public class AiTimetableService {
     }
 
     /**
-     * userId 기준으로 AI 시간표 생성에 사용된 요약 메세지(prompt)를 반환한다.
+     * userId 기준으로 AI 시간표 생성에 사용된 요약 메세지(prompt)를 반환
      * - AiTimetable.prompt 사용
+     * - 없으면 빈 문자열로 200 반환 (FE fallback용)
      */
-    // AiTimetableService.java
-
     @Transactional(readOnly = true)
     public TimetableSummaryResponse getTimetableSummary(Long userId) {
-        // 🔥 예전: 없으면 예외 던져서 500 터졌음
-        // AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
-        //         .orElseThrow(() -> new IllegalArgumentException("해당 유저의 AI 시간표가 없습니다."));
-
         return aiTimetableRepository.findByUser_Id(userId)
                 .map(entity -> {
                     String prompt = entity.getPrompt();
@@ -442,7 +427,6 @@ public class AiTimetableService {
                             .build();
                 })
                 .orElseGet(() ->
-                        // 🔥 아직 AI 시간표/요약이 한 번도 없으면: 빈 요약으로 200 리턴
                         TimetableSummaryResponse.builder()
                                 .userId(userId)
                                 .summary("")
@@ -477,10 +461,7 @@ public class AiTimetableService {
         return AiTimetableResponse.from(aiTimetableRepository.save(aiTimetable));
     }
 
-    /**
-     * <Ai 시간표 조회 서비스>
-     * AI가 만든 시간표를 조회하는 기능
-     */
+    /** Ai 시간표 조회 */
     @Transactional(readOnly = true)
     public AiTimetableResponse getAiTimetable(Long userId) {
         AiTimetable entity = aiTimetableRepository.findByUser_Id(userId)
@@ -488,10 +469,7 @@ public class AiTimetableService {
         return AiTimetableResponse.from(entity);
     }
 
-    /**
-     * <AI 시간표 삭제 서비스>
-     * AI가 만든 시간표를 삭제
-     */
+    /** AI 시간표 삭제 */
     @Transactional
     public void deleteAiTimetable(Long userId) {
         aiTimetableRepository.deleteByUser_Id(userId);

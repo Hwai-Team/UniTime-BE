@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,22 +29,28 @@ public class TimetableService {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
 
-    /** AI 시간표 생성 위임 */
+    /**
+     * ✅ AI 시간표 생성
+     * - 프론트에서 body로 userId, message, year, semester를 보내줌
+     * - 여기서 AiTimetableService.createByAi() 호출해서 Timetable 생성
+     * - 생성된 Timetable을 TimetableResponse 형태로 바로 반환 (FE의 AIGenerateTimetableResponse와 구조 호환)
+     */
     @Transactional
-    public AiTimetableResponse generateAiTimetable(Long userId, AiTimetableRequest request) {
-        User user = userRepository.findById(userId)
+    public TimetableResponse generateAiTimetable(AiTimetableRequest request) {
+        Long userId = request.getUserId();
+        if (userId == null) {
+            throw new IllegalArgumentException("userId는 필수입니다.");
+        }
+
+        // 유저 존재 여부 검증 (이름은 여기서 쓰지는 않지만, 유효성 체크용)
+        userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다. id=" + userId));
 
-        request.setUserId(userId);
-        // 여기서는 AiTimetableRequest.userId가 컨트롤러에서 세팅되어 있다고 가정
+        // 실제 AI 시간표 생성
         Timetable timetable = aiTimetableService.createByAi(request);
 
-        AiTimetableResponse response = new AiTimetableResponse();
-        response.setTimetableId(timetable.getId());
-        response.setTitle(timetable.getTitle());
-        response.setUserName(user.getName());
-        response.setMessage("AI 시간표가 성공적으로 생성되었습니다.");
-        return response;
+        // Timetable → TimetableResponse 변환해서 반환
+        return TimetableResponse.from(timetable);
     }
 
     /** 내 시간표 목록 조회 */
@@ -130,7 +137,7 @@ public class TimetableService {
                         .room(room)
                         .build();
 
-                // AI 시간표에서와 동일한 패턴: 직접 저장 + timetable.addItem
+                // 저장 + timetable에 추가
                 timetableItemRepository.save(item);
                 timetable.addItem(item);
             }
