@@ -15,11 +15,16 @@ public class TimetableUpdateRequest {
 
     @Data
     public static class Item {
+
         private Long itemId;
-        private Long courseId;          // 필수
-        private String dayOfWeek;       // 선택: 보내면 코스값 대신 이 값 사용
-        private Integer startPeriod;    // 선택
-        private Integer endPeriod;      // 선택
-        private String room;            // 선택
+
+        private Long courseId;       // DB 강의면 존재, 이미지강의면 null
+        private String courseName;   // 🔥 이미지 인식 시 필수
+        private String category;     // 전선/전필/교선/교필 or null
+
+        private String dayOfWeek;    // MON/TUE...
+        private Integer startPeriod;
+        private Integer endPeriod;
+        private String room;
     }
 }

@@ -85,7 +85,11 @@ public class TimetableService {
         return TimetableResponse.from(saved);
     }
 
-    /** 시간표 수정 (제목 + 아이템 전체 교체) */
+    /**
+     * ✅ 시간표 수정 (제목 + 아이템 전체 교체)
+     * - 이미지에서 가져온 강의들은 courseId가 없을 수 있으므로
+     *   courseId가 null인 경우 Course를 조회하지 않고, 이름/요일/교시만으로 저장 허용
+     */
     @Transactional
     public TimetableResponse updateTimetable(Long timetableId, TimetableUpdateRequest request) {
 
@@ -109,35 +113,60 @@ public class TimetableService {
 
             // 3) 요청 아이템으로 새로 구성
             for (TimetableUpdateRequest.Item it : request.getItems()) {
-                Course course = courseRepository.findById(it.getCourseId())
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 과목입니다. id=" + it.getCourseId()));
 
-                // 요청에 없으면 DB 값으로 대체
-                String dayOfWeek   = (it.getDayOfWeek()   != null) ? it.getDayOfWeek()   : course.getDayOfWeek();
-                Integer start      = (it.getStartPeriod() != null) ? it.getStartPeriod() : course.getStartPeriod();
-                Integer end        = (it.getEndPeriod()   != null) ? it.getEndPeriod()   : course.getEndPeriod();
-                String room        = (it.getRoom()        != null) ? it.getRoom()        : course.getRoom();
+                // ✅ courseId가 있을 때만 Course 조회
+                Course course = null;
+                if (it.getCourseId() != null) {
+                    course = courseRepository.findById(it.getCourseId())
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 과목입니다. id=" + it.getCourseId()));
+                }
 
-                // 필수 컬럼 검증
+                // ✅ 우선순위: 요청값 > DB(course) 값
+                String dayOfWeek = it.getDayOfWeek();
+                Integer start    = it.getStartPeriod();
+                Integer end      = it.getEndPeriod();
+                String room      = it.getRoom();
+                String category  = it.getCategory();
+                String courseName = it.getCourseName();
+
+                if (course != null) {
+                    if (dayOfWeek == null) dayOfWeek = course.getDayOfWeek();
+                    if (start == null)     start     = course.getStartPeriod();
+                    if (end == null)       end       = course.getEndPeriod();
+                    if (room == null)      room      = course.getRoom();
+                    if (category == null)  category  = course.getCategory();
+                    if (courseName == null || courseName.isBlank()) {
+                        courseName = course.getName();
+                    }
+                }
+
+                // 필수 컬럼 검증 (이미지로 들어온 애들은 request 쪽에 값이 채워져 있어야 함)
                 if (dayOfWeek == null || start == null || end == null) {
                     throw new IllegalArgumentException(
-                            "과목(" + course.getName() + ")의 시간정보가 부족합니다. " +
-                                    "DB(course) 값 또는 요청(dayOfWeek/startPeriod/endPeriod) 중 하나는 채워져야 합니다."
+                            "시간표 아이템의 시간정보가 부족합니다. " +
+                                    "dayOfWeek/startPeriod/endPeriod는 최소 한쪽(DB 또는 요청)에서 채워져야 합니다."
+                    );
+                }
+
+                // courseName도 비어 있으면 그냥 "이름 없는 강의" 꼴이라 웬만하면 막는 게 낫다
+                if (courseName == null || courseName.isBlank()) {
+                    throw new IllegalArgumentException(
+                            "과목 이름(courseName)이 없습니다. 이미지에서 불러온 항목이라면 courseName을 채워서 보내주세요."
                     );
                 }
 
                 TimetableItem item = TimetableItem.builder()
                         .timetable(timetable)
-                        .course(course)                 // 가능하면 course도 세팅
-                        .courseName(course.getName())
-                        .category(course.getCategory())
+                        .course(course)        // ✅ 이미지에서 온 건 null일 수 있음
+                        .courseName(courseName)
+                        .category(category)
                         .dayOfWeek(dayOfWeek)
                         .startPeriod(start)
                         .endPeriod(end)
                         .room(room)
                         .build();
 
-                // 저장 + timetable에 추가
+                // 저장 + timetable에 추가 (여기서 충돌 체크 등 수행)
                 timetableItemRepository.save(item);
                 timetable.addItem(item);
             }
