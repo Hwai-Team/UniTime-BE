@@ -42,7 +42,6 @@ public class AiTimetableService {
      * AI가 사용자의 자연어를 토대로 시간표를 생성합니다.
      *
      * @Author 김민호
-     * @param
      * 유저 정보, 요약 프롬프트(메시지), 학년·학과 조건, 요일/교시 선호 등을 바탕으로
      * 전공/교양/재수강 과목을 자동 배치하여 시간표를 생성.
      */
@@ -173,6 +172,9 @@ public class AiTimetableService {
             );
         }
 
+        // 🔥 최종 안전장치: MAX_CREDITS 초과 시 뒤에서 과목 잘라내기
+        enforceMaxCredits(timetable);
+
         // 8) AiTimetable 기록(유저당 1개)
         AiTimetable aiTimetable = aiTimetableRepository.findByUser_Id(user.getId())
                 .orElseGet(() -> AiTimetable.builder()
@@ -248,6 +250,43 @@ public class AiTimetableService {
                 g != null ? (g + "학년 ") : "",
                 dep.isEmpty() ? "" : dep
         ).trim();
+    }
+
+    /**
+     * 최종 시간표 학점이 MAX_CREDITS를 넘으면
+     * 뒤에서 추가된 과목부터 하나씩 제거해서 MAX_CREDITS 이하로 맞춘다.
+     */
+    private void enforceMaxCredits(Timetable timetable) {
+        if (timetable.getItems() == null || timetable.getItems().isEmpty()) {
+            return;
+        }
+
+        List<TimetableItem> items = new ArrayList<>(timetable.getItems());
+
+        int sum = 0;
+        for (TimetableItem it : items) {
+            if (it.getCourse() != null && it.getCourse().getCredit() != null) {
+                sum += it.getCourse().getCredit();
+            }
+        }
+
+        if (sum <= MAX_CREDITS) {
+            return;
+        }
+
+        // 뒤에서부터 하나씩 삭제 (보통 나중에 들어간 교양 과목부터 빠짐)
+        ListIterator<TimetableItem> it = items.listIterator(items.size());
+        while (sum > MAX_CREDITS && it.hasPrevious()) {
+            TimetableItem last = it.previous();
+
+            Integer credit = (last.getCourse() != null) ? last.getCourse().getCredit() : null;
+            int c = (credit != null) ? credit : 0;
+            sum -= c;
+
+            // DB/엔티티 둘 다에서 제거
+            timetableItemRepository.delete(last);
+            timetable.getItems().remove(last);
+        }
     }
 
     /** 결과 요약: 전공/교양/학점 + 사용 요일/주 몇 일 */
