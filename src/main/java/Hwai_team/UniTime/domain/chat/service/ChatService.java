@@ -59,10 +59,13 @@ public class ChatService {
 
             // 🔥 왼쪽 채팅은 이제 과목 상세를 말하면 안 됨 → 고정 멘트
             reply = "요청해 준 조건으로 시간표를 생성해볼게!\n오른쪽 시간표 영역에서 확인해줘.";
+
         } else {
-            // 일반 대화는 기존처럼 GPT 응답 사용
+            // 🎓 졸업요건 포함 일반 대화 → 질문 분석해서 system prompt 선택
+            String systemPrompt = PromptTemplates.resolveChatSystemPrompt(userMessage);
+
             reply = openAiClient.askChat(
-                    PromptTemplates.CHAT_SYSTEM_PROMPT,
+                    systemPrompt,   // ← 핵심 수정!
                     userMessage
             );
         }
