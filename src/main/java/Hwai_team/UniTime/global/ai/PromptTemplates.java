@@ -13,14 +13,14 @@ public class PromptTemplates {
      */
     public static final String CHAT_SYSTEM_PROMPT = """
         너는 UniTime 서비스 안에서 동작하는 대학생 전용 챗봇이야.
-        시간표, 수강 과목, 공부 계획, 그리고 UniTime 기능 사용법 등에 대해
+        시간표, 수강 과목, 공부 계획, 졸업요건, 그리고 UniTime 기능 사용법 등에 대해
         간결하고 정확하게 한국어로 답변해줘.
 
         [기본 규칙]
         - 사용자가 말한 학과/학년/상황을 기준으로 설명해.
-        - 모르는 정보(실제 학교 규정, 실시간 정보 등)는 아는 척하지 말고
-          "정확한 내용은 학교 공식 공지를 확인하라"고 안내해.
-        - 규칙을 지어내지 말고, 제공된 정보만으로 답변해.
+        - 실제 학교 규정/실시간 정보는 정확하지 않을 수 있으니,
+          모를 경우에는 "정확한 내용은 학교 공식 공지를 확인하세요."라고 안내해.
+        - 규칙을 지어내지 말고, 아래에 제공된 정보만 사용해.
         """;
 
 
@@ -47,16 +47,17 @@ public class PromptTemplates {
 
         3. 기초학문교양
         - 인문과예술, 사회와세계, 과학과기술, 미래와융합, 인성과체육
-        - 각 영역 1과목 이상 + 총 15학점 이상
+        - 각 영역 1과목 이상 + 총 15학점 이상 이수
 
         4. 졸업최저이수학점
-        - 총 120학점 이상
+        - 총 120학점 이상 이수
 
         [답변 규칙]
         - 먼저 “전자컴퓨터공학과 23학번 졸업요건 요약” 한 줄 생성
         - 전공 → 교양필수 → 기초학문교양 → 총 학점 순서로 bullet 정리
         - 마지막에 “실제 졸업요건은 학교 규정에 따라 달라질 수 있으니 반드시 공식 안내를 확인하세요.” 문장 포함
         """;
+
 
 
     /**
@@ -76,7 +77,7 @@ public class PromptTemplates {
 
 
     // ======================================================================
-    // ✅ 시간표 조건 요약 프롬프트
+    // ⏳ 시간표 조건 요약 프롬프트
     // ======================================================================
     public static final String TIMETABLE_SUMMARY_SYSTEM_PROMPT = """
         너는 UniTime 서비스 안에서 동작하는 "시간표 조건 요약 전용" AI야.
@@ -91,6 +92,7 @@ public class PromptTemplates {
         - 재수강 과목: 과목명1, 과목명2 또는 없음
         - 기타 요청: 위에 속하지 않는 나머지 요구사항 요약
         """;
+
 
     public static String buildTimetableSummaryPrompt(User user, String rawText) {
         return """
@@ -111,7 +113,7 @@ public class PromptTemplates {
 
 
     // ======================================================================
-    // 시간표 생성 프롬프트
+    // 📚 시간표 생성 프롬프트
     // ======================================================================
     public static String buildTimetablePrompt(User user, List<Course> courses, String userMessage) {
 
@@ -137,10 +139,10 @@ public class PromptTemplates {
                     .append("    \"courseCode\": \"").append(c.getCourseCode()).append("\",\n")
                     .append("    \"name\": \"").append(c.getName()).append("\",\n")
                     .append("    \"credit\": ").append(c.getCredit()).append(",\n")
-                    .append("    \"category\": \"").append(c.getCategory()).append("\",\n")
-                    .append("    \"department\": \"").append(c.getDepartment()).append("\",\n")
+                    .append("    \"category\": \"").append(c.getCategory()).append(",\n")
+                    .append("    \"department\": \"").append(c.getDepartment()).append(",\n")
                     .append("    \"recommendedGrade\": ").append(c.getRecommendedGrade()).append(",\n")
-                    .append("    \"dayOfWeek\": \"").append(c.getDayOfWeek()).append("\",\n")
+                    .append("    \"dayOfWeek\": \"").append(c.getDayOfWeek()).append(",\n")
                     .append("    \"startPeriod\": ").append(c.getStartPeriod()).append(",\n")
                     .append("    \"endPeriod\": ").append(c.getEndPeriod()).append(",\n")
                     .append("    \"professor\": \"").append(c.getProfessor() != null ? c.getProfessor() : "").append("\",\n")
