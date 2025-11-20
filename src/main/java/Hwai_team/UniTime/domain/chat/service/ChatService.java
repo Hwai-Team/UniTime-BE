@@ -13,7 +13,7 @@ import Hwai_team.UniTime.global.ai.PromptTemplates;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import Hwai_team.UniTime.global.ai.PromptTemplates;
+
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,13 +26,6 @@ public class ChatService {
     private final OpenAiClient openAiClient;
     private final UserRepository userRepository;
 
-    /**
-     * 사용자의 입력 메시지를 받아 AI 응답을 생성하고,
-     * 시간표 생성 의도 여부를 판별한 뒤 DB에 기록하고 최종 응답을 반환합니다.
-     *
-     * @param request 유저 ID와 메시지를 포함한 요청 객체
-     * @return 생성된 AI 응답, 시간표 플랜 여부, 추출된 시간표 플랜 정보
-    */
     @Transactional
     public ChatResponse chat(ChatRequest request) {
 
@@ -54,36 +47,28 @@ public class ChatService {
         String reply;
 
         if (timetableIntent) {
-            // 🔥 시간표 조건(학점/요일 등) 추출
+            // 🔥 시간표 조건 추출
             plan = extractTimetablePlan(userMessage);
 
-            // 🔥 왼쪽 채팅은 이제 과목 상세를 말하면 안 됨 → 고정 멘트
+            // 🔥 왼쪽 채팅에는 고정 멘트만 출력 (GPT 호출 막음)
             reply = "요청해 준 조건으로 시간표를 생성해볼게!\n오른쪽 시간표 영역에서 확인해줘.";
 
         } else {
-            // 🎓 졸업요건 포함 일반 대화 → 질문 분석해서 system prompt 선택
+            // 🔥 졸업요건/일반대화 프롬프트 자동 선택
             String systemPrompt = PromptTemplates.resolveChatSystemPrompt(userMessage);
 
             reply = openAiClient.askChat(
-                    systemPrompt,   // ← 핵심 수정!
+                    systemPrompt,
                     userMessage
             );
         }
 
-        // 메시지 저장
-        ChatMessage userMsg = ChatMessage.builder()
-                .user(user)
-                .role("USER")
-                .content(userMessage)
-                .build();
-        chatMessageRepository.save(userMsg);
+        // 저장
+        chatMessageRepository.save(ChatMessage.builder()
+                .user(user).role("USER").content(userMessage).build());
 
-        ChatMessage botMsg = ChatMessage.builder()
-                .user(user)
-                .role("ASSISTANT")
-                .content(reply)
-                .build();
-        chatMessageRepository.save(botMsg);
+        chatMessageRepository.save(ChatMessage.builder()
+                .user(user).role("ASSISTANT").content(reply).build());
 
         return ChatResponse.builder()
                 .reply(reply)
@@ -94,10 +79,8 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatHistoryResponse> getChatHistory(Long userId) {
-        List<ChatMessage> messages =
-                chatMessageRepository.findByUser_IdOrderByCreatedAtAsc(userId);
-
-        return messages.stream()
+        return chatMessageRepository.findByUser_IdOrderByCreatedAtAsc(userId)
+                .stream()
                 .map(ChatHistoryResponse::from)
                 .toList();
     }
@@ -107,34 +90,42 @@ public class ChatService {
         chatMessageRepository.deleteByUser_Id(userId);
     }
 
-    // ----------------- 여기부터 유틸 메서드들 -----------------
 
+    // ============================================
+    // 🔥 더 강력한 시간표 의도 감지 로직
+    // ============================================
     private boolean isTimetableIntent(String message) {
         if (message == null) return false;
 
         String m = message.replaceAll("\\s+", "").toLowerCase();
 
+        // 시간표 관련 키워드
         boolean hasTimetableWord =
                 m.contains("시간표") ||
-                        m.contains("수강신청") ||
-                        m.contains("시간표짜") ||
-                        m.contains("시간표만들");
+                        m.contains("수강") ||
+                        m.contains("강의") ||
+                        m.contains("course") ||
+                        m.contains("timetable");
 
+        // 행동 키워드 (형태 다양하게 대응)
         boolean hasActionWord =
-                m.contains("짜줘") ||
-                        m.contains("만들어줘") ||
-                        m.contains("추천해줘") ||
-                        m.contains("골라줘") ||
-                        m.contains("짜줄래") ||
-                        m.contains("만들어줄래");
+                m.contains("짜") ||
+                        m.contains("만들") ||
+                        m.contains("추천") ||
+                        m.contains("골라") ||
+                        m.contains("조합") ||
+                        m.contains("편성");
 
         return hasTimetableWord && hasActionWord;
     }
 
+
+    // ============================================
+    // 시간표 조건 추출
+    // ============================================
     private TimetablePlanDto extractTimetablePlan(String message) {
-        if (message == null) {
-            return null;
-        }
+        if (message == null) return null;
+
         String m = message.replaceAll("\\s+", "");
 
         Integer targetCredits = null;
@@ -142,27 +133,19 @@ public class ChatService {
         String timePreference = null;
         String avoidDays = null;
 
-        Pattern creditPattern = Pattern.compile("(\\d{1,2})학점");
-        Matcher creditMatcher = creditPattern.matcher(m);
+        Matcher creditMatcher = Pattern.compile("(\\d{1,2})학점").matcher(m);
         if (creditMatcher.find()) {
-            try {
-                targetCredits = Integer.parseInt(creditMatcher.group(1));
-            } catch (NumberFormatException ignored) {}
+            try { targetCredits = Integer.parseInt(creditMatcher.group(1)); } catch (Exception ignored) {}
         }
 
-        Pattern dayPattern = Pattern.compile("([월화수목금토일]{2,4})");
-        Matcher dayMatcher = dayPattern.matcher(m);
+        Matcher dayMatcher = Pattern.compile("([월화수목금토일]{2,4})").matcher(m);
         if (dayMatcher.find()) {
             preferredDays = dayMatcher.group(1);
         }
 
-        if (m.contains("오전")) {
-            timePreference = "오전";
-        } else if (m.contains("오후")) {
-            timePreference = "오후";
-        } else if (m.contains("저녁") || m.contains("야간")) {
-            timePreference = "저녁";
-        }
+        if (m.contains("오전")) timePreference = "오전";
+        else if (m.contains("오후")) timePreference = "오후";
+        else if (m.contains("저녁") || m.contains("야간")) timePreference = "저녁";
 
         if (m.contains("금요일") || m.contains("금은비우") || m.contains("금피하")) {
             avoidDays = "금요일";
@@ -175,5 +158,4 @@ public class ChatService {
                 .avoidDays(avoidDays)
                 .build();
     }
-
 }
