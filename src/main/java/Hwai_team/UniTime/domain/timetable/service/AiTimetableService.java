@@ -42,8 +42,8 @@ public class AiTimetableService {
      * AI가 사용자의 자연어를 토대로 시간표를 생성합니다.
      *
      * @Author 김민호
-     * 유저 정보, 요약 프롬프트(메시지), 학년·학과 조건, 요일/교시 선호 등을 바탕으로
-     * 전공/교양/재수강 과목을 자동 배치하여 시간표를 생성.
+     * @param *AiTimetableRequest
+     * @return *timetable
      */
     @Transactional
     public Timetable createByAi(AiTimetableRequest request) {
@@ -193,7 +193,14 @@ public class AiTimetableService {
         return timetable;
     }
 
-    /** 사용자 학년에 맞는 강의 매칭 필터 */
+    /**
+     * <사용자 학년에 맞는 강의 매칭 필터>
+     * 사용자의 학년과 강의의 recommended_grade과 같은지 대조 합니다.
+     *
+     * @author 김민호
+     * @param userGrade, course
+     * @return true or false
+     */
     private boolean isMajorRecommendedGradeMatch(Integer userGrade, Course c) {
         if (userGrade == null) return true;  // 유저 학년 정보 없으면 필터 안 함
 
@@ -206,7 +213,9 @@ public class AiTimetableService {
         return rec.equals(userGrade);
     }
 
-    /** 전공 카테고리 여부 */
+    /**
+     * <과목이 교양인지>
+     */
     private boolean isMajorCategory(Course c) {
         String cat = nullToEmpty(c.getCategory());
         return cat.startsWith("전") || cat.contains("전공") || cat.equals("전필") || cat.equals("전선")
@@ -636,13 +645,16 @@ public class AiTimetableService {
                     .room(c.getRoom())
                     .category(c.getCategory())
                     .build();
+
             try {
-                repo.save(item);
+                // ⚠️ 순서 바꾸기: 먼저 addItem으로 충돌 검사
                 timetable.addItem(item);
             } catch (IllegalStateException e) {
-                // 충돌났으면 rollback 없이 그냥 통과
+                // 충돌났으면 아예 추가하지 않음 (DB에도 저장 안 됨)
                 return currentCredits;
             }
+
+            repo.save(item); // 검증 통과한 것만 저장
 
             String code = nullToEmpty(c.getCourseCode());
             if (!code.isEmpty()) usedCodes.add(code);
