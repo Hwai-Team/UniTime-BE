@@ -1,75 +1,80 @@
+# 📊 UniTime – 대학생을 위한 AI 자동 시간표 생성 서비스
+
+>UniTime은 AI가 직접 시간표를 조합해주는 스마트 시간표 생성 서비스입니다.
+사용자는 단순히 “3일 등교로 만들어줘” 또는 “월요일은 비워줘” 같은 조건만 말하면 됩니다.
+AI가 강의 목록을 분석하고, 충돌을 자동으로 제거하며, 최적의 시간표를 즉시 구성해줍니다.
+
+**직관적인 UI와 강력한 AI 백엔드 모델을 기반으로, 번거로운 시간표 작성 과정을 효율적이고 즐겁게 바꾸는 것을 목표로 합니다.**
+
+<br>
+
 ## 👨‍💻 Developers
 
 | <img src="https://avatars.githubusercontent.com/u/197270758?v=4" width=100> 
 | :------------------------------------------------------------------------: | 
 |                   [김민호](https://github.com/minho0805)                   |         
 
-<br>
-
-## 🎯 Git Convention
-
-| 이모지 | 타입 | 설명 |
-|--------|------|------|
-| 🎉 `Start` | Start New Project | 프로젝트 시작 (`:tada:`) |
-| ✨ `Feat` | 새로운 기능 추가 | 새로운 기능 구현 (`:sparkles:`) |
-| 🐛 `Fix` | 버그 수정 | 버그 해결 (`:bug:`) |
-| 🎨 `Design` | UI / CSS 수정 | UI 디자인 변경 (`:art:`) |
-| ♻️ `Refactor` | 리팩토링 | 코드 구조 개선 (`:recycle:`) |
-| 🔧 `Settings` | 설정 변경 | 환경설정, 설정 파일 수정 (`:wrench:`) |
-| 🗃️ `Comment` | 주석 | 필요한 주석 추가/변경 (`:card_file_box:`) |
-| ➕ `Dependency/Plugin` | 의존성 추가 | 라이브러리, 플러그인 추가 (`:heavy_plus_sign:`) |
-| 📝 `Docs` | 문서 | 문서 수정 (`:memo:`) |
-| 🔀 `Merge` | 병합 | 브랜치 병합 (`:twisted_rightwards_arrows:`) |
-| 🚀 `Deploy` | 배포 | 배포 관련 작업 (`:rocket:`) |
-| 🚚 `Rename` | 이름 변경 | 파일/폴더명 수정 또는 이동 (`:truck:`) |
-| 🔥 `Remove` | 삭제 | 파일/코드 삭제 (`:fire:`) |
-| ⏪️ `Revert` | 되돌리기 | 이전 버전으로 롤백 (`:rewind:`) |
 
 <br>
 
+---
 
+# 🛠 사용 기술 (Tech Stack)
 
-## 📝 커밋 메시지 형식
+## **Backend**
+- Spring Boot 3
+- Java 17
+- Spring Security + JWT
+- JPA / Hibernate
+- PostgreSQL
+- OpenAI API (Chat Completions / Vision)
 
-형식: 작업 내용 요약
-
-예: <br>
-✨ Feat: 로그인 기능 구현  
-🐛 Fix: 로그인 오류 해결
-
-<br>
-
-
-
-## 🌿Branch Convention (GitHub Flow)
-
-- `main` : 배포 가능한 브랜치, 항상 배포 가능한 상태를 유지
-- `develop` : 개발 중 사용할 브랜치
-- `feature/{name}/{description}` : 새로운 기능을 개발하는 브랜치
-    - 예: `feature/minho/login-logout-signup`
+## **DevOps / Tooling**
+- Render Web Service
+- Docker (개발 환경용 일부)
+- IntelliJ 
 
 <br>
 
+---
+
+# 🖼 주요 화면
+
+## 🏠 메인 페이지
+사용자가 가장 먼저 만나게 되는 홈 화면으로, AI 시간표 생성 기능과 마이페이지로 쉽게 이동할 수 있습니다.
+
+<img width="1462" height="734" alt="main" src="https://github.com/user-attachments/assets/d1e97751-3a3b-4b8d-a321-fd919903fbe6" />
+
+<br>
+
+## 🤖 AI 시간표 생성 페이지
+AI에게 원하는 조건을 말하면 자동으로 시간표를 만들어주는 핵심 기능 페이지입니다.
+
+<img width="1907" height="910" alt="ai-timetable" src="https://github.com/user-attachments/assets/3c5a182d-f4c2-4978-8cd3-6d50e89cc708" />
+
+<br>
+
+## 🙋‍♂️ 프로필 / 시간표 목록 페이지
+저장된 시간표들을 한 번에 확인하고, 프로필 관리도 할 수 있는 공간입니다.
+
+<img width="1918" height="990" alt="profile-list" src="https://github.com/user-attachments/assets/0e697bc6-53f9-44bc-96d0-94c0104b2698" />
 
 
-## 🔀 Flow
+<br>
 
-1. `develop` 브랜치에서 `feature` 브랜치 생성.
-2. 작업을 완료하고 커밋 메시지에 맞게 커밋.
-3. Pull Request를 생성 / 팀원들의 리뷰.
-4. 리뷰가 완료 후 `develop` 브랜치로 병합.
-5. 배포 시점에 `develop` 브랜치를 `main` 브랜치로 병합.
-6. `main` 브랜치 배포 <br>
-#### 예시:
-```bash
-# 새로운 기능 개발 브랜치 생성
-git checkout -b feature/minho/login-logout-signup
+---
 
-# 작업 후 커밋 & 원격 저장소에 푸시
-git add .
-git commit -m "✨ Feat: 로그인/로그아웃/회원가입"
-git push origin feature/minho/login-logout-signup
 
-# ➡️ GitHub에서 PR(Pull Request) 생성
-#    base: develop ← compare: feature/기능명
-#    팀원들과 코드 리뷰 후 develop 브랜치로 병합
+# 🔑 ERD
+
+<img width="1735" height="819" alt="ERD" src="https://github.com/user-attachments/assets/c29ae2c4-617f-4f27-8317-0afef2f7c2d6" />
+
+<br>
+
+---
+
+# ☁️ System Architecture
+
+React 기반의 프론트엔드, Spring Boot 백엔드, Render 및 Netlify 배포 구조가 포함된 전체 시스템 구성도입니다.
+
+<img width="1170" height="697" alt="system-architecture" src="https://github.com/user-attachments/assets/3e661682-51b9-42ea-bf1c-521c03cffafa" />
