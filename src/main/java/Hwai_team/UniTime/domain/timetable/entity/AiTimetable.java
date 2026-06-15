@@ -1,10 +1,9 @@
 package Hwai_team.UniTime.domain.timetable.entity;
 
 import Hwai_team.UniTime.domain.user.entity.User;
+import Hwai_team.UniTime.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.time.LocalDateTime;
 
 @Getter
 @NoArgsConstructor
@@ -13,7 +12,7 @@ import java.time.LocalDateTime;
 @Builder
 @Entity
 @Table(name = "ai_timetables")
-public class AiTimetable {
+public class AiTimetable extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,16 +40,6 @@ public class AiTimetable {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "timetable_id")
     private Timetable timetable;
-
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 
     @Column(columnDefinition = "TEXT")
     private String message;

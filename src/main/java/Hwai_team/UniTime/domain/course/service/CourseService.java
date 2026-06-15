@@ -8,15 +8,11 @@ import Hwai_team.UniTime.domain.course.repository.CourseRepository;
 import Hwai_team.UniTime.domain.course.repository.TakenCourseRepository;
 import Hwai_team.UniTime.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,42 +24,12 @@ public class CourseService {
 
     @Transactional(readOnly = true)
     public List<CourseResponse> searchCourses(CourseSearchCond cond) {
-        // 필터 전혀 없으면 전체
-        if (cond.getGradeYear() == null && cond.getCategory() == null && cond.getKeyword() == null) {
-            return courseRepository.findAll()
-                    .stream()
-                    .map(CourseResponse::from)
-                    .collect(Collectors.toList());
-        }
-
-        // 학년 + 이수구분
-        if (cond.getGradeYear() != null && cond.getCategory() != null) {
-            return courseRepository.findByRecommendedGradeAndCategory(
-                            cond.getGradeYear(), cond.getCategory()
-                    )
-                    .stream()
-                    .map(CourseResponse::from)
-                    .collect(Collectors.toList());
-        }
-        // 학년만
-        else if (cond.getGradeYear() != null) {
-            return courseRepository.findByRecommendedGrade(cond.getGradeYear())
-                    .stream()
-                    .map(CourseResponse::from)
-                    .collect(Collectors.toList());
-        }
-        // 키워드 검색
-        else if (cond.getKeyword() != null) {
-            return courseRepository.findByNameContainingIgnoreCase(cond.getKeyword())
-                    .stream()
-                    .map(CourseResponse::from)
-                    .collect(Collectors.toList());
-        }
-
-        return courseRepository.findAll()
-                .stream()
+        return courseRepository.search(
+                        cond.getKeyword(), null, cond.getCategory(), cond.getGradeYear(), null, null,
+                        Pageable.unpaged()
+                )
                 .map(CourseResponse::from)
-                .collect(Collectors.toList());
+                .getContent();
     }
 
     @Transactional(readOnly = true)
@@ -108,18 +74,6 @@ public class CourseService {
     @Transactional
     public void deleteCourse(Long id) {
         courseRepository.deleteById(id);
-    }
-
-    // 확장용 (페이징 검색)
-    @Transactional(readOnly = true)
-    public Page<CourseResponse> getCourses(
-            String q, String department, String category,
-            Integer grade, Integer credit, String dayOfWeek,
-            int page, int size, Sort sort
-    ) {
-        Pageable pageable = PageRequest.of(page, size, sort);
-        return courseRepository.search(q, department, category, grade, credit, dayOfWeek, pageable)
-                .map(CourseResponse::from);
     }
 
     /**

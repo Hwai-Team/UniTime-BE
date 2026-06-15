@@ -2,10 +2,10 @@
 package Hwai_team.UniTime.domain.timetable.entity;
 
 import Hwai_team.UniTime.domain.user.entity.User;
+import Hwai_team.UniTime.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class Timetable {
+public class Timetable extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,9 +28,6 @@ public class Timetable {
     private Integer year;
     private Integer semester;
     private String title;
-
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "timetable", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

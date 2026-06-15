@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
@@ -18,16 +17,6 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     Optional<Course> findByCourseCodeAndSection(String courseCode, String section);
 
     Optional<Course> findByName(String name);
-
-    // 추천 학년 기준 조회 (엔티티 필드명: recommendedGrade)
-    List<Course> findByRecommendedGrade(Integer recommendedGrade);
-
-    List<Course> findByRecommendedGradeAndCategory(Integer recommendedGrade, String category);
-
-    List<Course> findByNameContainingIgnoreCase(String keyword);
-
-    // ✅ 학과 + 추천 학년 기준 조회 (AI 시간표용 후보 과목)
-    List<Course> findByDepartmentAndRecommendedGrade(String department, Integer recommendedGrade);
 
     boolean existsByCourseCode(String courseCode);
 

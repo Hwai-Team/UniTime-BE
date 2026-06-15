@@ -24,24 +24,7 @@ public class JwtTokenProvider {
             // 기본 14일
             @Value("${jwt.refresh-token-validity-ms:1209600000}") long refreshTokenValidityInMs
     ) {
-        // ===== 디버깅용 로그 =====
-        byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
-        int byteLength = keyBytes.length;
-        int bitLength = byteLength * 8;
-
-        String maskedSecret =
-                secretKey.length() > 10
-                        ? secretKey.substring(0, 10) + "...(masked)"
-                        : secretKey;
-
-        System.out.println("=== [JWT] secret (masked)     : " + maskedSecret);
-        System.out.println("=== [JWT] secret char length  : " + secretKey.length());
-        System.out.println("=== [JWT] secret byte length  : " + byteLength);
-        System.out.println("=== [JWT] secret bit length   : " + bitLength);
-
-        // 실제 키 생성 (여기서 WeakKeyException 터졌던 부분)
-        this.key = Keys.hmacShaKeyFor(keyBytes);
-
+        this.key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
         this.accessTokenValidityInMs = accessTokenValidityInMs;
         this.refreshTokenValidityInMs = refreshTokenValidityInMs;
     }

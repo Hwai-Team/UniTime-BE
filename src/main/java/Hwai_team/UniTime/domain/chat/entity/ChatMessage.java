@@ -1,10 +1,9 @@
 package Hwai_team.UniTime.domain.chat.entity;
 
 import Hwai_team.UniTime.domain.user.entity.User;
+import Hwai_team.UniTime.global.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.time.LocalDateTime;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -12,7 +11,7 @@ import java.time.LocalDateTime;
 @Builder
 @Entity
 @Table(name = "chat_messages")
-public class ChatMessage {
+public class ChatMessage extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,14 +28,4 @@ public class ChatMessage {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
-
-
-
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
 }
